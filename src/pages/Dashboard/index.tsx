@@ -24,8 +24,8 @@ export default function Dashboard() {
     Promise.all([dashboardApi.status(), accountApi.list(), dashboardApi.stats().catch(() => ({ data: {} }))])
       .then(async ([s, a]) => {
         setStatus(s.data);
-        const list = a.data?.accounts || a.data || [];
-        setAccounts(list);
+        const list = a.data?.data || a.data || [];
+        setAccounts(Array.isArray(list) ? list : []);
         const running = list.find((acc: any) => acc.running);
         if (running) setSelectedId(running.id);
       })

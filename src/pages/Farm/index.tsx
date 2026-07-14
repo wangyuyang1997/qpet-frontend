@@ -30,7 +30,7 @@ export default function Farm() {
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
   if (!farm) return <Typography.Text type="secondary">暂无农场数据</Typography.Text>;
 
-  const locked = farm.unlocked_slots || 0;
+  const locked = farm.unlockedSlots || 0;
   const total = Math.max(locked, farm.slots?.length || 0);
   const slots = farm.slots || [];
   const collection = farm.collection || [];
@@ -75,7 +75,7 @@ export default function Farm() {
         <Row gutter={[12, 12]}>
           {slots.map((slot: any) => {
             const stateInfo = STATE_MAP[slot.state] || STATE_MAP.empty;
-            const isVip = slot.slotIndex === farm.vip_slot_index;
+            const isVip = slot.slotIndex === farm.vipSlotIndex;
             const land = slot.land;
             return (
               <Col key={slot.slotIndex} xs={24} sm={8} md={6} lg={6} xl={6}>
@@ -118,14 +118,14 @@ export default function Farm() {
         <Col xs={24} md={8}>
           <Card size="small" title="今日统计">
             <Row gutter={[12, 12]}>
-              <Col span={12}><Statistic title="翻地" value={farm.exploration_status?.todayCount || 0} suffix={`/ ${farm.exploration_status?.dailyLimit || 50}`} /></Col>
-              <Col span={12}><Statistic title="收获经验" value={farm.today_harvest_exp} /></Col>
+              <Col span={12}><Statistic title="翻地" value={farm.explorationStatus?.todayCount || 0} suffix={`/ ${farm.explorationStatus?.dailyLimit || 50}`} /></Col>
+              <Col span={12}><Statistic title="收获经验" value={farm.todayHarvestExp} /></Col>
               <Col span={12}><Statistic title="偷菜" value={0} suffix="/ 50" /></Col>
               <Col span={12}><Statistic title="访问" value={farm.dailyVisitClaimedToday ? '已领' : '未领'} /></Col>
             </Row>
-            {farm.pet_guard_info && (
+            {farm.petGuardInfo && (
               <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-secondary)' }}>
-                守护: {farm.pet_guard_info.petName} Lv.{farm.pet_guard_info.petLevel} · 抓住 {(farm.pet_guard_info.catchPct * 100).toFixed(0)}%
+                守护: {farm.petGuardInfo.petName} Lv.{farm.petGuardInfo.petLevel} · 抓住 {(farm.petGuardInfo.catchPct * 100).toFixed(0)}%
               </div>
             )}
           </Card>

@@ -107,9 +107,9 @@ export default function AccountDetail() {
           {farm ? (
             <>
               <Descriptions bordered size="small" column={3} style={{ marginBottom: 24 }}>
-                <Descriptions.Item label="已解锁">{farm.unlocked_slots} 块</Descriptions.Item>
-                <Descriptions.Item label="VIP 地块">{farm.vip_slot_index >= 0 ? `#${farm.vip_slot_index}` : '无'}</Descriptions.Item>
-                <Descriptions.Item label="今日经验">{farm.today_harvest_exp}</Descriptions.Item>
+                <Descriptions.Item label="已解锁">{farm.unlockedSlots} 块</Descriptions.Item>
+                <Descriptions.Item label="VIP 地块">{farm.vipSlotIndex >= 0 ? `#${farm.vipSlotIndex}` : '无'}</Descriptions.Item>
+                <Descriptions.Item label="今日经验">{farm.todayHarvestExp}</Descriptions.Item>
                 <Descriptions.Item label="农场等级">{farm.level}</Descriptions.Item>
                 <Descriptions.Item label="经验">{farm.experience}</Descriptions.Item>
                 <Descriptions.Item label="会员">{farm.is_premium ? <Tag color="gold">VIP</Tag> : <span>否</span>}</Descriptions.Item>
