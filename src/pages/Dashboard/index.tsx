@@ -1,176 +1,313 @@
-import { useEffect, useState } from 'react';
-import { Row, Col, Card, Table, Tag, Spin, Typography } from 'antd';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Row, Col, Card, Tag, Spin, Typography, Empty } from 'antd';
 import ReactECharts from 'echarts-for-react';
-import { dashboardApi, accountApi } from '../../api/client';
+import { useAccount } from '../../store/useAccount';
+import { dashboardApi } from '../../api/client';
 
-const StatCell = ({ label, value, vs }: { label: string; value: any; vs?: string }) => (
-  <div style={{ padding: '4px 0' }}>
-    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{label}</div>
-    <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: '-0.03em' }}>
-      {value?.toLocaleString?.() ?? value ?? '-'}
+interface WeeklyRow {
+  date: string; level: number; class_name: string; combat_power: number;
+  npc_fights: number; friend_fights: number; steals: number; tower_floors: number; tower_max: number;
+  exp_battle: number; today_harvest_exp: number; current_exp: number; level_exp: number; level_exp_max: number;
+  gang_contribution: number; abyss_tickets: number;
+  stamina_ads: number; community_ads: number; farm_ads: number;
+}
+
+interface SummaryRow {
+  total_exp: number; total_contrib: number;
+  total_steals: number; total_accounts: number;
+}
+
+function StatCell({ label, value, vs }: { label: string; value: string | number; vs?: string }) {
+  const isUp = vs?.startsWith('↑');
+  const isDown = vs?.startsWith('↓');
+  return (
+    <div style={{ textAlign: 'center', padding: '8px 4px' }}>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: '-0.03em', lineHeight: 1.2 }}>
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </div>
+      {vs && (
+        <div style={{
+          fontSize: 11, marginTop: 4,
+          color: isUp ? 'var(--green)' : isDown ? 'var(--red)' : 'var(--text-tertiary)',
+        }}>
+          {vs}
+        </div>
+      )}
     </div>
-    {vs && <div style={{ fontSize: 11, color: vs.startsWith('↑') ? '#52c41a' : vs.startsWith('↓') ? '#ff4d4f' : 'var(--text-tertiary)', marginTop: 2 }}>{vs}</div>}
-  </div>
-);
+  );
+}
 
 export default function Dashboard() {
-  const [status, setStatus] = useState<any>(null);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [weeklyMap, setWeeklyMap] = useState<Record<string, any[]>>({});
+  const { accountId: paramId } = useParams<{ accountId: string }>();
+  const { selectedAccountId, accounts } = useAccount();
+  const navigate = useNavigate();
+  const accountId = paramId || selectedAccountId;
+
+  const [weekly, setWeekly] = useState<WeeklyRow[]>([]);
+  const [summary, setSummary] = useState<SummaryRow | null>(null);
+  const [allWeekly, setAllWeekly] = useState<Record<string, WeeklyRow[]>>({});
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string>('');
 
+  // Redirect if no accountId in URL but selected in store
   useEffect(() => {
-    Promise.all([dashboardApi.status(), accountApi.list(), dashboardApi.stats().catch(() => ({ data: {} }))])
-      .then(async ([s, a]) => {
-        setStatus(s.data);
-        const list = a.data?.data || a.data || [];
-        setAccounts(Array.isArray(list) ? list : []);
-        const running = list.find((acc: any) => acc.running);
-        if (running) setSelectedId(running.id);
+    if (!paramId && selectedAccountId) {
+      navigate(`/overview/${selectedAccountId}`, { replace: true });
+    }
+  }, [paramId, selectedAccountId, navigate]);
+
+  // Fetch current account weekly data
+  useEffect(() => {
+    if (!accountId) return;
+    setLoading(true);
+    dashboardApi.weekly(accountId)
+      .then((res: any) => {
+        const data = res.data?.data || res.data || [];
+        setWeekly(Array.isArray(data) ? data : []);
+        setSummary(res.data?.summary || null);
       })
+      .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [accountId]);
 
-  // Fetch weekly data for selected account
+  // Fetch all other accounts weekly data for multi-line chart
+  const prevIdsRef2 = useRef('');
   useEffect(() => {
-    if (!selectedId) return;
-    const api = accountApi as any;
-    (api.weekly || (() => Promise.resolve({ data: [] })))(selectedId)
-      .then((res: any) => setWeeklyMap((prev: any) => ({ ...prev, [selectedId]: res.data || [] })))
-      .catch(() => {});
-  }, [selectedId]);
+    const idsKey = accounts.map((a) => a.id).sort().join(',') + '|' + accountId;
+    if (idsKey === prevIdsRef2.current) return;
+    prevIdsRef2.current = idsKey;
+    if (accounts.length === 0) return;
+    const others = accounts.filter((a) => a.id !== accountId);
+    if (others.length === 0) return;
+    Promise.all(others.map((a) =>
+      dashboardApi.weekly(a.id).then((res: any) => ({ id: a.id, data: res.data?.data || [] })).catch(() => ({ id: a.id, data: [] })),
+    )).then((results) => {
+      setAllWeekly((prev) => {
+        const map = { ...prev };
+        results.forEach((r) => { map[r.id] = r.data; });
+        return map;
+      });
+    });
+  }, [accounts, accountId]);
 
-  if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
+  const todayRow = weekly.length > 0 ? weekly[weekly.length - 1] : null;
+  const yesterdayRow = weekly.length > 1 ? weekly[weekly.length - 2] : null;
 
-  const runningCount = accounts.filter((a: any) => a.running).length;
-  const totalExp = accounts.reduce((s: number, a: any) => s + (a.today_exp_gained || 0), 0);
-  const activeDays = 7; // TODO: calculate from daily_records
-  const weekly = weeklyMap[selectedId] || [];
+  function vsYesterday(today: number, yesterday: number | undefined): string | undefined {
+    if (yesterday === undefined || yesterday === 0) return undefined;
+    const pct = Math.round((today - yesterday) / yesterday * 100);
+    if (pct > 0) return `↑${pct}% vs昨`;
+    if (pct < 0) return `↓${Math.abs(pct)}% vs昨`;
+    return '→ 持平';
+  }
 
-  // Weekly trend chart for selected account
-  const trendOption = {
-    grid: { top: 12, right: 16, bottom: 8, left: 44 },
+  const todayExp = (todayRow?.today_harvest_exp || 0);
+  const yesterdayExp = yesterdayRow?.today_harvest_exp;
+
+  // Current character weekly trend chart
+  const trendOption = useMemo(() => ({
+    grid: { top: 8, right: 16, bottom: 4, left: 44 },
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: weekly.map((r: any) => r.date?.slice(5) || ''), axisLabel: { fontSize: 11, color: '#aeaeb2' } },
+    xAxis: { type: 'category', data: weekly.map((r) => r.date?.slice(5) || ''), axisLabel: { fontSize: 11, color: '#aeaeb2' } },
     yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)' } }, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
     series: [{
-      name: '经验', type: 'line', smooth: true, symbol: 'circle', symbolSize: 6,
-      data: weekly.map((r: any) => r.today_harvest_exp || 0),
+      type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
+      data: weekly.map((r) => r.today_harvest_exp || 0),
       lineStyle: { color: '#0071e3', width: 2 }, itemStyle: { color: '#0071e3' },
-      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,113,227,0.15)' }, { offset: 1, color: 'rgba(0,113,227,0)' }] } },
+      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,113,227,0.12)' }, { offset: 1, color: 'rgba(0,113,227,0)' }] } },
     }],
-  };
+  }), [weekly]);
 
-  // Pie chart for experience distribution
-  const pieOption = {
-    tooltip: { trigger: 'item' },
-    series: [{
-      type: 'pie', radius: ['55%', '80%'], center: ['50%', '50%'],
-      label: { fontSize: 11 }, emphasis: { label: { fontSize: 14, fontWeight: 'bold' } },
-      data: accounts.map((a: any) => ({ name: a.name || a.id?.slice(0, 6), value: a.today_exp_gained || 1 })),
-    }],
-  };
+  // All accounts pie chart — 本周各角色经验占比
+  const pieOption = useMemo(() => {
+    const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
+    if (accountId && weekly.length > 0) merged[accountId] = weekly;
+    const pieData = accounts.map((a) => ({
+      name: a.name,
+      value: (merged[a.id] || []).slice(-1)[0]?.current_exp || 0,
+    }));
+    return {
+      tooltip: { trigger: 'item', formatter: (p: any) => `${p.name}: ${p.value?.toLocaleString()} (${p.percent}%)` },
+      series: [{
+        type: 'pie', radius: ['50%', '78%'], center: ['50%', '50%'],
+        label: { fontSize: 10, color: '#6e6e73' },
+        data: pieData.length > 0 ? pieData : [{ name: '暂无数据', value: 1 }],
+        itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      }],
+    };
+  }, [accounts, allWeekly, weekly, accountId]);
 
-  // Multi-line chart for all accounts weekly trend
-  const multiLineOption = {
-    grid: { top: 12, right: 16, bottom: 8, left: 44 },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: weekly.map((r: any) => r.date?.slice(5) || ''), axisLabel: { fontSize: 11, color: '#aeaeb2' } },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)' } }, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
-    series: accounts.slice(0, 5).map((a: any, i: number) => ({
-      name: a.name || a.id?.slice(0, 6), type: 'line',
-      data: (weeklyMap[a.id] || []).map((r: any) => r.today_harvest_exp || 0),
-      smooth: true, symbol: 'none',
-    })),
-  };
+  // Multi-line chart for all accounts
+  const dates = weekly.length > 0 ? weekly.map((r) => r.date?.slice(5) || '') : ['一', '二', '三', '四', '五', '六', '日'];
+  const colors = ['#0071e3', '#ff9500', '#34c759', '#ff3b30', '#5ac8fa', '#af52de'];
+  const multiLineOption = useMemo(() => {
+    const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
+    if (accountId && weekly.length > 0) merged[accountId] = weekly;
+    // Build series: use level_exp for upgrade progress; skip Lv.100 with 0 level_exp
+    const trendSeries = accounts
+      .map((a, i) => {
+        const data = (merged[a.id] || []).map((r) => r.level_exp ?? 0);
+        const latest = (merged[a.id] || []).slice(-1)[0];
+        const lv = latest?.level ?? a.level;
+        if ((latest?.level_exp_max ?? 0) === 0) return null;
+        return {
+          name: `${a.name} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
+          lineStyle: { color: colors[i % colors.length], width: 2 },
+        };
+      })
+      .filter(Boolean) as any[];
+    return {
+      grid: { top: 8, right: 16, bottom: 4, left: 44 },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)' } }, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
+      series: trendSeries,
+    };
+  }, [accounts, allWeekly, weekly, dates, accountId]);
 
-  const tableColumns = [
-    { title: '昵称', dataIndex: 'name', key: 'name', width: 110, render: (v: string, r: any) => v || r.id?.slice(0, 8) },
-    { title: '等级', dataIndex: 'level', key: 'level', width: 60, sorter: (a: any, b: any) => a.level - b.level },
-    { title: '职业', dataIndex: 'class_name', key: 'cn', width: 80, render: (v: string) => v || '-' },
-    { title: '今日经验', key: 'exp', width: 100, render: (_: any, r: any) => (r.today_exp_gained || 0).toLocaleString() },
-    {
-      title: '状态', dataIndex: 'running', key: 'r', width: 80,
-      render: (v: boolean) => (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: v ? '#52c41a' : '#aeaeb2', display: 'inline-block' }} />
-          <span style={{ fontSize: 13, color: v ? '#52c41a' : '#aeaeb2' }}>{v ? '运行' : '停止'}</span>
-        </span>
-      ),
-    },
-    {
-      title: '', key: 'action', width: 60,
-      render: (_: any, r: any) => (
-        <Typography.Link onClick={() => setSelectedId(r.id)} style={{ fontSize: 12 }}>
-          {r.id === selectedId ? '✓ 当前' : '查看'}
-        </Typography.Link>
-      ),
-    },
+  const currAccount = accounts.find((a) => a.id === accountId);
+
+  // Today progress checklist items
+  const progressItems = [
+    { label: '签到', done: todayRow != null, current: null, max: null },
+    { label: 'NPC', current: todayRow?.npc_fights ?? null, max: 10 },
+    { label: '好友', current: todayRow?.friend_fights ?? null, max: 3 },
+    { label: '爬塔', current: todayRow?.tower_floors ?? null, max: 6 },
+    { label: 'BOSS', done: false, current: null, max: null },
+    { label: '世界', done: false, current: null, max: null },
+    { label: '婚内送花', done: false, current: null, max: 5 },
+    { label: '广告', done: (todayRow?.stamina_ads || 0) + (todayRow?.community_ads || 0) > 0, current: null, max: null },
+    { label: '挑战书', done: false, current: null, max: null },
+    { label: '体力购买', done: false, current: null, max: null },
   ];
+
+  if (loading && weekly.length === 0) {
+    return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
+  }
+
+  if (!accountId) {
+    return <Empty description="请选择一个角色" style={{ marginTop: 120 }} />;
+  }
 
   return (
     <div>
-      {/* Current character section */}
-      {selectedId && (
-        <Card size="small" style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>
-            当前角色: {accounts.find((a: any) => a.id === selectedId)?.name || selectedId?.slice(0, 8)}
-          </div>
-          <Row gutter={[16, 16]}>
-            <Col xs={12} sm={6}><StatCell label="今日经验" value={accounts.find((a: any) => a.id === selectedId)?.today_exp_gained || 0} vs="↑12% vs昨" /></Col>
-            <Col xs={12} sm={6}><StatCell label="今日战斗" value="-" /></Col>
-            <Col xs={12} sm={6}><StatCell label="今日爬塔" value="-" /></Col>
-            <Col xs={12} sm={6}><StatCell label="今日BOSS" value="-" /></Col>
-          </Row>
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>本周经验趋势</div>
-            {weekly.length > 0 ? (
-              <ReactECharts option={trendOption} style={{ height: 200 }} />
-            ) : (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>暂无周数据</Typography.Text>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* All roles summary */}
-      <Card size="small" title="全部角色 · 本周" style={{ marginBottom: 24 }}>
+      {/* ── 当前角色 ── */}
+      <Card
+        size="small"
+        title={
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>
+            当前角色：{currAccount?.name || accountId?.slice(0, 8)} Lv.{todayRow?.level || currAccount?.level || '-'} {todayRow?.class_name || currAccount?.class_name || ''}
+          </span>
+        }
+        style={{ marginBottom: 24 }}
+      >
         <Row gutter={[16, 16]}>
-          <Col xs={12} sm={6}><StatCell label="总经验" value={totalExp} vs="↑8% vs上周" /></Col>
-          <Col xs={12} sm={6}><StatCell label="总战斗" value="-" /></Col>
-          <Col xs={12} sm={6}><StatCell label="活跃天数" value={activeDays} /></Col>
-          <Col xs={12} sm={6}><StatCell label="角色数" value={accounts.length} /></Col>
+          <Col xs={12} sm={6}>
+            <StatCell label="今日经验" value={todayExp} vs={vsYesterday(todayExp, yesterdayExp)} />
+          </Col>
+          <Col xs={12} sm={6}>
+            <StatCell
+              label="今日贡献"
+              value={todayRow ? `${todayRow.gang_contribution}` : '-'}
+              vs={vsYesterday(todayRow?.gang_contribution || 0, yesterdayRow?.gang_contribution)}
+            />
+          </Col>
+          <Col xs={12} sm={6}>
+            <StatCell
+              label="今日偷菜"
+              value={todayRow ? `${todayRow.steals}次` : '-'}
+              vs={vsYesterday(todayRow?.steals || 0, yesterdayRow?.steals)}
+            />
+          </Col>
+          <Col xs={12} sm={6}>
+            <StatCell
+              label="深渊票"
+              value={todayRow ? `${todayRow.abyss_tickets}` : '-'}
+              vs={vsYesterday(todayRow?.abyss_tickets || 0, yesterdayRow?.abyss_tickets)}
+            />
+          </Col>
         </Row>
-        <Row gutter={16} style={{ marginTop: 16 }}>
+
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, fontFamily: 'var(--font-display)' }}>
+            本周经验趋势（7天）
+          </div>
+          {weekly.length > 0 ? (
+            <ReactECharts option={trendOption} style={{ height: 200 }} />
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>暂无数据</Typography.Text>
+          )}
+        </div>
+      </Card>
+
+      {/* ── 全部角色 · 本周 ── */}
+      <Card
+        size="small"
+        title={<span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>全部角色 · 本周</span>}
+        style={{ marginBottom: 24 }}
+      >
+        <Row gutter={[16, 16]}>
+          <Col xs={12} sm={6}>
+            <StatCell label="总经验" value={summary?.total_exp ?? '-'} />
+          </Col>
+          <Col xs={12} sm={6}>
+            <StatCell label="总贡献" value={summary?.total_contrib != null ? `${summary.total_contrib}` : '-'} />
+          </Col>
+          <Col xs={12} sm={6}>
+            <StatCell label="总偷菜" value={summary?.total_steals != null ? `${summary.total_steals}次` : '-'} />
+          </Col>
+          <Col xs={12} sm={6}>
+            <StatCell label="角色数" value={summary?.total_accounts ?? accounts.length} />
+          </Col>
+        </Row>
+
+        <Row gutter={16} style={{ marginTop: 20 }}>
           <Col xs={24} md={12}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>各角色经验占比</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, fontFamily: 'var(--font-display)' }}>
+              农场经验分布
+            </div>
             <ReactECharts option={pieOption} style={{ height: 220 }} />
           </Col>
           <Col xs={24} md={12}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>各角色本周趋势</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, fontFamily: 'var(--font-display)' }}>
+              升级经验趋势
+            </div>
             <ReactECharts option={multiLineOption} style={{ height: 220 }} />
           </Col>
         </Row>
       </Card>
 
-      {/* Today progress checklist */}
-      <Card size="small" title="当前角色 · 今日进度" style={{ marginBottom: 24 }}>
-        <Row gutter={[12, 8]}>
-          {['签到 ✅', 'NPC -/10', '好友 -/3', '爬塔 -/6', 'BOSS ✅', '世界 ✅', '婚内送花 -/5', '广告 ✅', '挑战书 ✅', '体力购买 ✅'].map((item, i) => (
-            <Col key={i} xs={12} sm={6} md={4}>
-              <Tag style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6 }}>
-                {item}
-              </Tag>
-            </Col>
-          ))}
+      {/* ── 当前角色 · 今日进度 ── */}
+      <Card
+        size="small"
+        title={<span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>当前角色 · 今日进度</span>}
+      >
+        <Row gutter={[10, 10]}>
+          {progressItems.map((item) => {
+            const done = item.done != null ? item.done : (item.current != null && item.max != null && item.current >= item.max);
+            let text: string;
+            if (item.done != null) {
+              text = done ? `${item.label} ✅` : item.label;
+            } else if (item.current != null && item.max != null) {
+              text = `${item.label} ${item.current}/${item.max}`;
+            } else {
+              text = `${item.label} -/-`;
+            }
+            return (
+              <Col key={item.label} xs={12} sm={6} md={4}>
+                <Tag style={{
+                  fontSize: 12, padding: '4px 12px', borderRadius: 8,
+                  background: done ? 'rgba(52,199,89,0.08)' : 'transparent',
+                  border: done ? '1px solid rgba(52,199,89,0.2)' : '1px solid var(--border-subtle)',
+                  color: done ? 'var(--green)' : 'var(--text-secondary)',
+                }}>
+                  {text}
+                </Tag>
+              </Col>
+            );
+          })}
         </Row>
-      </Card>
-
-      {/* Accounts table */}
-      <Card size="small" title={<span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 15 }}>账号</span>}
-        bodyStyle={{ padding: '0 8px' }}>
-        <Table rowKey="id" dataSource={accounts} columns={tableColumns} pagination={false} size="small" showHeader={false} />
       </Card>
     </div>
   );

@@ -55,6 +55,7 @@ export const dashboardApi = {
   stats: () => api.get('/logs/stats'),
   status: () => api.get('/status'),
   version: () => api.get('/version'),
+  weekly: (accountId: string) => api.get('/dashboard/weekly', { params: { accountId } }),
 };
 
 // Config

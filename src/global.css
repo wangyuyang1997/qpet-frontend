@@ -55,6 +55,11 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: var(--font-body);
   font-size: 15px;
@@ -261,6 +266,17 @@ h3 { font-size: 18px; line-height: 1.22222; }
 }
 
 /* Menu overrides for sidebar */
+.ant-layout-sider {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.ant-layout-sider-children {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
 .ant-menu-dark {
   background: transparent !important;
 }
@@ -276,6 +292,17 @@ h3 { font-size: 18px; line-height: 1.22222; }
 }
 .ant-menu-item-selected {
   background: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Menu group title (partition labels) */
+.ant-menu-item-group-title {
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-sidebar-muted) !important;
+  padding: 16px 20px 6px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
 }
 
 /* Spin */

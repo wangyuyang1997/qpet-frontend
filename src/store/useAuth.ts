@@ -16,10 +16,24 @@ export const useAuth = create<AuthState>((set) => ({
   login: async (login, password) => {
     try {
       const res = await authApi.login(login, password);
-      const data = res.data;
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        set({ user: { userId: data.userId, username: data.username, role: data.role, accountIds: data.accountIds || [] } });
+      const body = res.data;                // { success, data: { token, user_id, ... } }
+      const inner = body.data || body;       // 兼容两种格式
+      if (inner.token) {
+        localStorage.setItem('token', inner.token);
+        localStorage.setItem('user_info', JSON.stringify({
+          userId: inner.user_id || inner.userId,
+          username: inner.username,
+          role: inner.role,
+          accountIds: inner.account_ids || inner.accountIds || [],
+        }));
+        set({
+          user: {
+            userId: inner.user_id || inner.userId,
+            username: inner.username,
+            role: inner.role,
+            accountIds: inner.account_ids || inner.accountIds || [],
+          },
+        });
         return true;
       }
       return false;
@@ -31,6 +45,7 @@ export const useAuth = create<AuthState>((set) => ({
   logout: async () => {
     try { await authApi.logout(); } catch {}
     localStorage.removeItem('token');
+    localStorage.removeItem('user_info');
     set({ user: null });
   },
 
@@ -40,8 +55,17 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       set({ loading: true });
       const res = await authApi.me();
-      const d = res.data;
-      set({ user: { userId: d.userId, username: d.username, role: d.role, accountIds: d.accountIds || [] }, loading: false });
+      const body = res.data;
+      const inner = body.data || body;
+      set({
+        user: {
+          userId: inner.user_id || inner.userId,
+          username: inner.username,
+          role: inner.role,
+          accountIds: inner.account_ids || inner.accountIds || [],
+        },
+        loading: false,
+      });
     } catch {
       localStorage.removeItem('token');
       set({ user: null, loading: false });

@@ -18,6 +18,7 @@ import Marriage from './pages/Marriage';
 import Inventory from './pages/Inventory';
 import Gang from './pages/Gang';
 import Auction from './pages/Auction';
+import Strategies from './pages/Strategies';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem('token');
@@ -30,8 +31,10 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<PrivateRoute><BasicLayout /></PrivateRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
+        <Route index element={<Navigate to="/overview" replace />} />
+        <Route path="dashboard" element={<Navigate to="/overview" replace />} />
+        <Route path="overview" element={<Dashboard />} />
+        <Route path="overview/:accountId" element={<Dashboard />} />
         <Route path="accounts" element={<Accounts />} />
         <Route path="accounts/:id" element={<AccountDetail />} />
         <Route path="config" element={<Config />} />
@@ -48,6 +51,7 @@ export default function App() {
         <Route path="inventory/:accountId" element={<Inventory />} />
         <Route path="gang" element={<Gang />} />
         <Route path="auction" element={<Auction />} />
+        <Route path="strategies" element={<Strategies />} />
       </Route>
     </Routes>
   );
