@@ -17,7 +17,7 @@ const MODULES: { key: string; label: string; icon: React.ReactNode; keys: string
   },
   {
     key: 'gang', label: '帮派', icon: <TeamOutlined />,
-    keys: ['auto_gang_boss', 'auto_gang_donate'],
+    keys: ['auto_gang_boss'],
   },
   {
     key: 'social', label: '社交', icon: <HeartOutlined />,

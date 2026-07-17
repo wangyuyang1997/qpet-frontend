@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Card, Tag, Spin, Typography, Empty, Progress } from 'antd';
 import { accountApi } from '../../api/client';
 
@@ -7,24 +7,24 @@ const TIER_COLORS = ['#52c41a', '#1890ff', '#722ed1', '#fa8c16', '#eb2f96', '#f5
 
 export default function Class() {
   const { accountId } = useParams<{ accountId: string }>();
-  const [tree, setTree] = useState<any>(null);
-  const [char, setChar] = useState<any>({});
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!accountId) return;
-    Promise.all([
-      accountApi.skillTree(accountId),
-      accountApi.character(accountId),
-    ])
-      .then(([tRes, cRes]: any[]) => {
-        setTree(tRes.data?.data || tRes.data || null);
-        setChar(cRes.data?.data || cRes.data || {});
-      })
-      .finally(() => setLoading(false));
-  }, [accountId]);
+  const skillQuery = useQuery({
+    queryKey: ['skillTree', accountId],
+    queryFn: () => accountApi.skillTree(accountId!),
+    enabled: !!accountId,
+  });
 
-  if (loading) return null;
+  const charQuery = useQuery({
+    queryKey: ['character', accountId],
+    queryFn: () => accountApi.character(accountId!),
+    enabled: !!accountId,
+  });
+
+  const loading = skillQuery.isLoading || charQuery.isLoading;
+  const tree = skillQuery.data?.data?.data || skillQuery.data?.data || null;
+  const char = charQuery.data?.data?.data || charQuery.data?.data || {};
+
+  if (loading) return <Spin style={{ display: 'block', margin: '40vh auto' }} />;
   if (!tree) return <Typography.Text type="secondary">暂无技能树数据</Typography.Text>;
 
   const nodes = tree.skillTree || [];
