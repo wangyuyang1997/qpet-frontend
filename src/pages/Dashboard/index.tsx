@@ -10,7 +10,7 @@ interface WeeklyRow {
   npc_fights: number; steals: number; tower_floors: number; tower_max: number;
   harvests: number; plants: number; waters: number; digs: number;
   exp_battle: number; today_harvest_exp: number; current_exp: number; level_exp: number; level_exp_max: number;
-  gang_contribution: number; abyss_tickets: number;
+  gang_contribution: number; gang_boss_fights: number; abyss_tickets: number;
   stamina_ads: number; community_ads: number; farm_ads: number;
   challenge_books: number; flowers_sent: number;
 }
@@ -147,9 +147,7 @@ export default function Dashboard() {
     const valid = accounts
       .filter((a) => {
         const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
-        if (data.every((v: number) => v === 0)) return false;
-        const latest = (allWeekly[a.id] || []).slice(-1)[0];
-        return (latest?.level ?? a.level) < 100;
+        return !data.every((v: number) => v === 0);
       })
       .sort((a, b) => {
         const la = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
@@ -180,11 +178,11 @@ export default function Dashboard() {
   const progressItems: any[] = [
     { label: '签到', done: todayRow != null },
     { label: '偷菜', current: todayRow?.steals ?? null, max: 50, suffix: '次' },
-    { label: '翻地', current: todayRow?.digs ?? null, max: null, suffix: '次' },
+    { label: '翻地', current: todayRow?.digs ?? null, max: 50, suffix: '次' },
     { label: '体力广告', current: todayRow?.stamina_ads ?? null, max: 10, suffix: '次' },
     { label: '农场广告', current: todayRow?.farm_ads ?? null, max: 5, suffix: '次' },
     { label: '社区广告', current: todayRow?.community_ads ?? null, max: 5, suffix: '次' },
-    { label: '帮派BOSS', current: todayRow?.gang_contribution ?? null, max: null, suffix: '贡献', note: '上限15次' },
+    { label: '帮派BOSS', current: todayRow?.gang_boss_fights ?? null, max: 15, suffix: '次' },
     isMarried
       ? { label: '婚内送花', current: todayRow?.flowers_sent ?? null, max: 5, suffix: '次' }
       : { label: '好友送花', current: null, max: 10, suffix: '次' },

@@ -13,7 +13,7 @@ const STATE_MAP: Record<string, { label: string; color: string }> = {
 const RARITY_LABEL: Record<string, string> = { legend: '传说', rare: '稀有', fine: '良品', normal: '普通', '传说': '传说', '稀有': '稀有', '良品': '良品', '普通': '普通' };
 const RARITY_COLOR: Record<string, string> = { legend: '#fa8c16', rare: '#722ed1', fine: '#1677ff', normal: '#999', '传说': '#fa8c16', '稀有': '#722ed1', '良品': '#1677ff', '普通': '#999' };
 const ALBUM_QUALITIES = ['稀有', '优', '普通'] as const;
-const ALBUM_COLOR: Record<string, string> = { '稀有': '#722ed1', '优': '#1677ff', '普通': '#999' };
+const ALBUM_COLOR: Record<string, string> = { '稀有': '#f59e0b', '优': '#3b82f6', '普通': '#10b981' };
 
 export default function Farm() {
   const { accountId } = useParams<{ accountId: string }>();

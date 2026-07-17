@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Row, Col, Tag, Typography, Statistic, Table, Empty, Spin, Tabs } from 'antd';
-import { accountApi } from '../../api/client';
+import { accountApi, dashboardApi } from '../../api/client';
 
 const TYPE_LABEL: Record<string, { label: string; color: string }> = {
   bead:       { label: '魂珠',   color: '#722ed1' },
@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<string, { label: string; color: string }> = {
 export default function Inventory() {
   const { accountId } = useParams<{ accountId: string }>();
   const [items, setItems] = useState<any[]>([]);
+  const [today, setToday] = useState<any>({});
   const [char, setChar] = useState<any>({});
   const [loading, setLoading] = useState(true);
   const [activeType, setActiveType] = useState<string>('all');
@@ -24,22 +25,23 @@ export default function Inventory() {
     if (!accountId) return;
     Promise.all([
       accountApi.inventoryProgress(accountId).catch(() => ({ data: null })),
+      dashboardApi.weekly(accountId).catch(() => ({ data: { data: [] } })),
       accountApi.character(accountId).catch(() => ({ data: null })),
     ])
-      .then(([iRes, cRes]: any[]) => {
+      .then(([iRes, wRes, cRes]: any[]) => {
         const invData = iRes?.data?.data || iRes?.data || {};
-        const charData = cRes?.data?.data || cRes?.data || {};
         setItems(invData.items || []);
-        setChar(charData);
+        const rows = (wRes?.data?.data || []) as any[];
+        const todayRow = rows.find((r: any) => r.date === new Date().toISOString().slice(0, 10)) || {};
+        setToday(todayRow);
+        setChar(cRes?.data?.data || cRes?.data || {});
       })
       .finally(() => setLoading(false));
   }, [accountId]);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
 
-  // 从背包汇总关键道具
-  const forgeStones = items.filter((i: any) => i.item_type === 'material' && String(i.game_item_id||'').includes('forge')).reduce((s: number, i: any) => s + i.quantity, 0);
-  const abyssTickets = items.filter((i: any) => i.item_type === 'material' && String(i.game_item_id||'').includes('abyss')).reduce((s: number, i: any) => s + i.quantity, 0);
+  // 从背包汇总消耗品
   const expPotions = items.filter((i: any) => i.item_type === 'consumable' && String(i.game_item_id||'').includes('exp')).reduce((s: number, i: any) => s + i.quantity, 0);
   const staminaPotions = items.filter((i: any) => i.item_type === 'consumable' && String(i.game_item_id||'').includes('stamina')).reduce((s: number, i: any) => s + i.quantity, 0);
 
@@ -62,12 +64,12 @@ export default function Inventory() {
         背包
       </Typography.Text>
 
-      {/* 角色资源 */}
+      {/* 仓库资源 */}
       <Card size="small" style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]}>
-          <Col span={4}><Statistic title="体力" value={`${char.stamina ?? '-'} / ${char.max_stamina ?? '-'}`} /></Col>
-          <Col span={4}><Statistic title="锻造石" value={forgeStones.toLocaleString()} /></Col>
-          <Col span={4}><Statistic title="深渊票" value={abyssTickets.toLocaleString()} /></Col>
+          <Col span={4}><Statistic title="仓库挑战书" value={today.gang_challenge_books ?? '-'} suffix="本" /></Col>
+          <Col span={4}><Statistic title="仓库还魂丹" value={today.tower_revive ?? '-'} suffix="颗" /></Col>
+          <Col span={4}><Statistic title="仓库鲜花" value={today.flowers_remaining ?? '-'} suffix="朵" /></Col>
           <Col span={4}><Statistic title="经验药水" value={expPotions.toLocaleString()} suffix="瓶" /></Col>
           <Col span={4}><Statistic title="体力药水" value={staminaPotions.toLocaleString()} suffix="瓶" /></Col>
           <Col span={4}>

@@ -247,10 +247,7 @@ export default function Battle() {
       <Card size="small" title="今日战斗">
         <Row gutter={16}>
           <Col span={6}><Statistic title="NPC乐斗" value={char.today_record?.npc_fights || 0} suffix="次" /></Col>
-          <Col span={6}>
-            <Statistic title="体力" value={`${char.stamina || 0}/${char.max_stamina || 100}`}
-              valueStyle={{ fontSize: 16 }} />
-          </Col>
+          <Col span={6}><Statistic title="体力" value={`${char.stamina || 0}/${char.max_stamina || 100}`} /></Col>
           <Col span={6}><Statistic title="帮派BOSS" value={char.today_record?.gang_contribution || 0} suffix="贡献" /></Col>
           <Col span={6}><Statistic title="深渊票" value={char.abyss_tickets || 0} suffix="张" /></Col>
         </Row>
