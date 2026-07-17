@@ -1,16 +1,18 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Row, Col, Card, Tag, Spin, Typography, Empty } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import { useAccount } from '../../store/useAccount';
-import { dashboardApi } from '../../api/client';
+import { dashboardApi, accountApi } from '../../api/client';
 
 interface WeeklyRow {
   date: string; level: number; class_name: string; combat_power: number;
-  npc_fights: number; friend_fights: number; steals: number; tower_floors: number; tower_max: number;
+  npc_fights: number; steals: number; tower_floors: number; tower_max: number;
+  harvests: number; plants: number; waters: number; digs: number;
   exp_battle: number; today_harvest_exp: number; current_exp: number; level_exp: number; level_exp_max: number;
   gang_contribution: number; abyss_tickets: number;
   stamina_ads: number; community_ads: number; farm_ads: number;
+  challenge_books: number; flowers_sent: number;
 }
 
 interface SummaryRow {
@@ -49,6 +51,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<SummaryRow | null>(null);
   const [allWeekly, setAllWeekly] = useState<Record<string, WeeklyRow[]>>({});
   const [loading, setLoading] = useState(true);
+  const [isMarried, setIsMarried] = useState(false);
 
   // Redirect if no accountId in URL but selected in store
   useEffect(() => {
@@ -57,39 +60,37 @@ export default function Dashboard() {
     }
   }, [paramId, selectedAccountId, navigate]);
 
-  // Fetch current account weekly data
-  useEffect(() => {
+  // Fetch all accounts weekly data + character in ONE call
+  const fetchData = () => {
     if (!accountId) return;
-    setLoading(true);
-    dashboardApi.weekly(accountId)
-      .then((res: any) => {
-        const data = res.data?.data || res.data || [];
-        setWeekly(Array.isArray(data) ? data : []);
-        setSummary(res.data?.summary || null);
+    Promise.all([
+      dashboardApi.weeklyAll(),
+      accountApi.character(accountId).catch(() => ({ data: null })),
+    ])
+      .then(([allRes, charRes]: any[]) => {
+        const dataByAccount = allRes.data?.data || {};
+        setAllWeekly(dataByAccount);
+        setSummary(allRes.data?.summary || null);
+        // Current account
+        const curData = dataByAccount[accountId] || [];
+        setWeekly(curData);
+        const charData = charRes.data?.data || charRes.data || {};
+        setIsMarried((charData.marriage_hp_applied || 0) > 0 || (charData.bonus_marriage_hp || 0) > 0);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    fetchData();
   }, [accountId]);
 
-  // Fetch all other accounts weekly data for multi-line chart
-  const prevIdsRef2 = useRef('');
+  // Poll every 60s for live updates (Redis-cached)
   useEffect(() => {
-    const idsKey = accounts.map((a) => a.id).sort().join(',') + '|' + accountId;
-    if (idsKey === prevIdsRef2.current) return;
-    prevIdsRef2.current = idsKey;
-    if (accounts.length === 0) return;
-    const others = accounts.filter((a) => a.id !== accountId);
-    if (others.length === 0) return;
-    Promise.all(others.map((a) =>
-      dashboardApi.weekly(a.id).then((res: any) => ({ id: a.id, data: res.data?.data || [] })).catch(() => ({ id: a.id, data: [] })),
-    )).then((results) => {
-      setAllWeekly((prev) => {
-        const map = { ...prev };
-        results.forEach((r) => { map[r.id] = r.data; });
-        return map;
-      });
-    });
-  }, [accounts, accountId]);
+    const timer = setInterval(fetchData, 60000);
+    return () => clearInterval(timer);
+  }, [accountId]);
 
   const todayRow = weekly.length > 0 ? weekly[weekly.length - 1] : null;
   const yesterdayRow = weekly.length > 1 ? weekly[weekly.length - 2] : null;
@@ -142,21 +143,28 @@ export default function Dashboard() {
   const dates = weekly.length > 0 ? weekly.map((r) => r.date?.slice(5) || '') : ['一', '二', '三', '四', '五', '六', '日'];
   const colors = ['#0071e3', '#ff9500', '#34c759', '#ff3b30', '#5ac8fa', '#af52de'];
   const multiLineOption = useMemo(() => {
-    const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
-    if (accountId && weekly.length > 0) merged[accountId] = weekly;
-    // Build series: use level_exp for upgrade progress; skip Lv.100 with 0 level_exp
-    const trendSeries = accounts
-      .map((a, i) => {
-        const data = (merged[a.id] || []).map((r) => r.level_exp ?? 0);
-        const latest = (merged[a.id] || []).slice(-1)[0];
-        const lv = latest?.level ?? a.level;
-        if ((latest?.level_exp_max ?? 0) === 0) return null;
-        return {
-          name: `${a.name} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
-          lineStyle: { color: colors[i % colors.length], width: 2 },
-        };
+    // Build series: level progression, skip max-level (100), sort high→low
+    const valid = accounts
+      .filter((a) => {
+        const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
+        if (data.every((v: number) => v === 0)) return false;
+        const latest = (allWeekly[a.id] || []).slice(-1)[0];
+        return (latest?.level ?? a.level) < 100;
       })
-      .filter(Boolean) as any[];
+      .sort((a, b) => {
+        const la = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
+        const lb = (allWeekly[b.id] || []).slice(-1)[0]?.level ?? b.level;
+        return lb - la;
+      });
+    const trendSeries = valid.map((a, i) => {
+        const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
+        const lv = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
+        const c = colors[i % colors.length];
+        return {
+          name: `${a.name || a.id} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
+          itemStyle: { color: c }, lineStyle: { color: c, width: 2 },
+        };
+      }) as any[];
     return {
       grid: { top: 8, right: 16, bottom: 4, left: 44 },
       tooltip: { trigger: 'axis' },
@@ -169,17 +177,18 @@ export default function Dashboard() {
   const currAccount = accounts.find((a) => a.id === accountId);
 
   // Today progress checklist items
-  const progressItems = [
-    { label: '签到', done: todayRow != null, current: null, max: null },
-    { label: 'NPC', current: todayRow?.npc_fights ?? null, max: 10 },
-    { label: '好友', current: todayRow?.friend_fights ?? null, max: 3 },
-    { label: '爬塔', current: todayRow?.tower_floors ?? null, max: 6 },
-    { label: 'BOSS', done: false, current: null, max: null },
-    { label: '世界', done: false, current: null, max: null },
-    { label: '婚内送花', done: false, current: null, max: 5 },
-    { label: '广告', done: (todayRow?.stamina_ads || 0) + (todayRow?.community_ads || 0) > 0, current: null, max: null },
-    { label: '挑战书', done: false, current: null, max: null },
-    { label: '体力购买', done: false, current: null, max: null },
+  const progressItems: any[] = [
+    { label: '签到', done: todayRow != null },
+    { label: '偷菜', current: todayRow?.steals ?? null, max: 50, suffix: '次' },
+    { label: '翻地', current: todayRow?.digs ?? null, max: null, suffix: '次' },
+    { label: '体力广告', current: todayRow?.stamina_ads ?? null, max: 10, suffix: '次' },
+    { label: '农场广告', current: todayRow?.farm_ads ?? null, max: 5, suffix: '次' },
+    { label: '社区广告', current: todayRow?.community_ads ?? null, max: 5, suffix: '次' },
+    { label: '帮派BOSS', current: todayRow?.gang_contribution ?? null, max: null, suffix: '贡献', note: '上限15次' },
+    isMarried
+      ? { label: '婚内送花', current: todayRow?.flowers_sent ?? null, max: 5, suffix: '次' }
+      : { label: '好友送花', current: null, max: 10, suffix: '次' },
+    { label: '挑战书', current: todayRow?.challenge_books ?? null, max: 5, suffix: '次' },
   ];
 
   if (loading && weekly.length === 0) {
@@ -271,7 +280,7 @@ export default function Dashboard() {
           </Col>
           <Col xs={24} md={12}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, fontFamily: 'var(--font-display)' }}>
-              升级经验趋势
+              等级变化趋势
             </div>
             <ReactECharts option={multiLineOption} style={{ height: 220 }} />
           </Col>
@@ -284,16 +293,19 @@ export default function Dashboard() {
         title={<span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>当前角色 · 今日进度</span>}
       >
         <Row gutter={[10, 10]}>
-          {progressItems.map((item) => {
+          {progressItems.map((item: any) => {
             const done = item.done != null ? item.done : (item.current != null && item.max != null && item.current >= item.max);
             let text: string;
             if (item.done != null) {
               text = done ? `${item.label} ✅` : item.label;
             } else if (item.current != null && item.max != null) {
-              text = `${item.label} ${item.current}/${item.max}`;
+              text = `${item.label} ${item.current}/${item.max}${item.suffix || ''}`;
+            } else if (item.current != null) {
+              text = `${item.label} ${item.current}${item.suffix || ''}`;
             } else {
               text = `${item.label} -/-`;
             }
+            if (item.note) text += ` (${item.note})`;
             return (
               <Col key={item.label} xs={12} sm={6} md={4}>
                 <Tag style={{

@@ -1,144 +1,212 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, Row, Col, Tabs, Tag, Spin, Typography, Progress, Statistic, Badge, Empty, Space, Select } from 'antd';
-import { ExperimentOutlined, TrophyOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Tag, Typography, Progress, Statistic, Empty, Space, Collapse, Tooltip } from 'antd';
+import { HomeOutlined } from '@ant-design/icons';
 import { accountApi } from '../../api/client';
 
-const RARITY_COLORS: Record<string, string> = {
-  normal: '#999', fine: '#1677ff', rare: '#722ed1', legend: '#fa8c16',
+const RARITY_COLOR: Record<string, string> = {
+  '普通': '#999', '良品': '#1677ff', '稀有': '#722ed1', '传说': '#fa8c16',
 };
+const RARITY_ORDER = ['传说', '稀有', '良品', '普通'];
+
+// 统一土地 9 阶数据
+const LAND_TIERS = [
+  { lv: 1, name: '普通土地', rp: 0,     art: 0,   growth: 0,  harvest: 0,  desc: '初始耕地' },
+  { lv: 2, name: '肥沃土地', rp: 200,   art: 4,   growth: -2, harvest: 2,  desc: '翻新启程' },
+  { lv: 3, name: '红土地',   rp: 550,   art: 10,  growth: -4, harvest: 4,  desc: '稳步培育' },
+  { lv: 4, name: '黑土田',   rp: 1100,  art: 20,  growth: -5, harvest: 6,  desc: '土质成型' },
+  { lv: 5, name: '灵壤田',   rp: 2000,  art: 36,  growth: -7, harvest: 9,  desc: '中期分水岭' },
+  { lv: 6, name: '沃金田',   rp: 3400,  art: 56,  growth: -9, harvest: 12, desc: '高产阶段' },
+  { lv: 7, name: '玉脉田',   rp: 5500,  art: 82,  growth: -11,harvest: 16, desc: '高阶养成' },
+  { lv: 8, name: '星辉田',   rp: 8500,  art: 112, growth: -14,harvest: 21, desc: '准毕业土地' },
+  { lv: 9, name: '神恩田',   rp: 12700, art: 148, growth: -18,harvest: 27, desc: '毕业神田' },
+];
 
 export default function Museum() {
   const { accountId } = useParams<{ accountId: string }>();
-  const [farm, setFarm] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [museum, setMuseum] = useState<any>(null);
+  const [land, setLand] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<string>('museum');
 
-  useEffect(() => {
+  const fetchAll = () => {
     if (!accountId) return;
-    accountApi.farm(accountId)
-      .then((res: any) => setFarm(res.data))
-      .finally(() => setLoading(false));
+    accountApi.museumProgress(accountId)
+      .then((res: any) => setMuseum(res.data?.data || null));
+    accountApi.landStatus(accountId)
+      .then((res: any) => setLand(res.data?.data || null));
+  };
+
+  useEffect(() => { fetchAll(); }, [accountId]);
+  useEffect(() => {
+    const t = setInterval(fetchAll, 60000);
+    return () => clearInterval(t);
   }, [accountId]);
 
-  if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
-  if (!farm) return <Typography.Text type="secondary">暂无数据</Typography.Text>;
+  // ——— Museum Tab ———
+  const items = museum?.items || [];
+  const cats = museum?.categories || [];
+  const repairedCount = museum?.repaired_count || 0;
 
-  const museum = farm.museum || {};
-  const slots = farm.slots || [];
-  const halls = museum.halls || [];
-  const items = museum.items || [];
-  const totalItems = museum.totalCount || 200;
-  const discovered = museum.uniqueCount || 0;
-  const researchPoints = museum.researchPoints || 0;
-
-  // 按展厅分组
-  const hallGroups = halls.map((hall: any) => ({
-    ...hall,
-    items: items.filter((i: any) => i.hall === hall.id),
-  }));
-
-  // 土地养成筛选
-  const [landFilter, setLandFilter] = useState<string>('all');
-  const landSlots = slots.filter((s: any) => s.land);
-  const filteredLand = landFilter === 'all'
-    ? landSlots
-    : landFilter === 'upgradable'
-      ? landSlots.filter((s: any) => s.land?.canUpgrade)
-      : landSlots.filter((s: any) => s.land?.name === landFilter);
-  const landNames: string[] = [...new Set(landSlots.map((s: any) => s.land?.name as string).filter(Boolean))] as string[];
+  // 按分类×稀有度 分组
+  const groups: Record<string, Record<string, any[]>> = {};
+  for (const it of items) {
+    const cat = it.category || '其他';
+    const rar = it.rarity || '普通';
+    if (!groups[cat]) groups[cat] = {};
+    if (!groups[cat][rar]) groups[cat][rar] = [];
+    groups[cat][rar].push(it);
+  }
 
   const museumTab = (
     <div>
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-        <Col span={6}><Statistic title="藏品" value={discovered} suffix={`/ ${totalItems}`} /></Col>
-        <Col span={6}><Statistic title="研究点" value={researchPoints} /></Col>
-        <Col span={6}><Statistic title="稀有保底" value={museum.nextRareIn || 30} suffix="次后" /></Col>
-        <Col span={6}><Statistic title="传说保底" value={museum.nextLegendIn || 200} suffix="次后" /></Col>
+        <Col span={8}><Statistic title="已修复藏品" value={repairedCount} suffix={`/ ${museum?.total_items || 200}`} /></Col>
+        <Col span={8}>
+          <Statistic title="分类完成" value={cats.filter((c: any) => c.repaired === c.total).length} suffix={`/ ${cats.length}`} />
+        </Col>
+        <Col span={8}><Statistic title="总藏品" value={museum?.total_items || 200} /></Col>
       </Row>
 
-      {hallGroups.length === 0 ? (
-        <Empty description="暂无展厅数据" />
-      ) : (
-        <CollapseHallGroups groups={hallGroups} />
+      {cats.length === 0 ? <Empty description="暂无博物馆数据" /> : (
+        <Collapse items={Object.entries(groups).map(([cat, rarMap]) => {
+          const totalInCat = Object.values(rarMap).flat().length;
+          const repairedInCat = Object.values(rarMap).flat().filter((i: any) => i.is_repaired).length;
+          return {
+            key: cat,
+            label: <span>{cat} <Tag>{repairedInCat}/{totalInCat}</Tag></span>,
+            children: RARITY_ORDER.filter(r => rarMap[r]?.length).map(r => (
+              <div key={r} style={{ marginBottom: 12 }}>
+                <Tag color={RARITY_COLOR[r]}>{r}</Tag>
+                <Row gutter={[6, 4]}>
+                  {rarMap[r].map((item: any) => {
+                    const pct = item.fragments_needed > 0
+                      ? Math.round((item.fragment_count / item.fragments_needed) * 100) : 0;
+                    const statusTag = item.is_repaired
+                      ? <Tag color="success" style={{ fontSize: 10 }}>成</Tag>
+                      : item.status === '半'
+                        ? <Tag style={{ fontSize: 10 }}>半</Tag>
+                        : null;
+                    return (
+                      <Col key={item.item_id} xs={12} sm={8} md={6} lg={4}>
+                        <Tooltip title={item.description || item.name}>
+                          <Card size="small" bodyStyle={{ padding: '6px 8px' }}
+                            style={{ opacity: item.fragment_count > 0 ? 1 : 0.35 }}>
+                            <div style={{ fontSize: 12, fontWeight: 500 }}>
+                              {item.name} {statusTag}
+                            </div>
+                            <Progress percent={pct} size="small"
+                              format={() => `${item.fragment_count}/${item.fragments_needed}`}
+                              strokeColor={item.is_repaired ? '#52c41a' : RARITY_COLOR[r]} />
+                          </Card>
+                        </Tooltip>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              </div>
+            )),
+          };
+        })} />
       )}
     </div>
   );
 
-  const landTab = (
+  // ——— Land Tab (统一养成) ———
+  const curLv = land?.level || 1;
+  const next = land?.next || {};
+  const rp = land?.research_points || 0;
+
+  // 计算藏品进度（用于土地升级门槛显示）
+  const repairedForLand = repairedCount;
+
+  const landTab = land ? (
     <div>
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col span={8}><Statistic title="研究点（共享）" value={researchPoints} /></Col>
+      {/* 顶部：当前状态 + 下一级目标 */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={8}>
-          <Statistic title="已修复藏品（共享）"
-            value={items.filter((i: any) => i.restored).length} suffix="件" />
+          <Card size="small">
+            <Statistic title="当前土地"
+              value={land.name} valueStyle={{ fontSize: 22, color: '#fa8c16' }} />
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+              成长 {curLv === 1 ? '+0%' : `${LAND_TIERS[curLv-1].growth}%`}
+              {' · '}收获 {curLv === 1 ? '+0%' : `+${LAND_TIERS[curLv-1].harvest}%`}
+            </div>
+          </Card>
         </Col>
         <Col span={8}>
-          <Statistic title="可升级地块"
-            value={landSlots.filter((s: any) => s.land?.canUpgrade).length} suffix="块" />
+          <Card size="small">
+            <Statistic title="研究点" value={rp}
+              suffix={next.rp_needed ? <span style={{ fontSize: 14, color: '#999' }}>/ {next.rp_needed}</span> : undefined} />
+            <Progress percent={next.rp_needed ? Math.min(100, Math.round((rp / next.rp_needed) * 100)) : 0}
+              size="small" status={rp >= (next.rp_needed || 0) ? 'success' : 'active'} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card size="small">
+            <Statistic title="已修复藏品" value={repairedForLand}
+              suffix={next.artifacts ? <span style={{ fontSize: 14, color: '#999' }}>/ {next.artifacts}</span> : undefined} />
+            <Progress percent={next.artifacts ? Math.min(100, Math.round((repairedForLand / next.artifacts) * 100)) : 0}
+              size="small" status={repairedForLand >= (next.artifacts || 0) ? 'success' : 'active'} />
+          </Card>
         </Col>
       </Row>
 
-      <Space style={{ marginBottom: 12 }}>
-        <Select value={landFilter} onChange={setLandFilter} style={{ width: 140 }}
-          options={[
-            { value: 'all', label: `全部 ${landSlots.length}` },
-            { value: 'upgradable', label: `可升级 ${landSlots.filter((s: any) => s.land?.canUpgrade).length}` },
-            ...landNames.map((n: string) => ({
-              value: n, label: `${n} ${landSlots.filter((s: any) => s.land?.name === n).length}`,
-            })),
-          ]} />
-      </Space>
-
-      {filteredLand.length === 0 ? (
-        <Empty description="暂无可升级地块" />
-      ) : (
-        <Row gutter={[12, 12]}>
-          {filteredLand.map((slot: any) => {
-            const land = slot.land;
-            if (!land) return null;
-            const reqs = land.requirements || {};
-            return (
-              <Col key={slot.slotIndex} xs={24} sm={12} md={8} lg={6}>
-                <Card size="small" title={`地块 ${slot.slotIndex}`}
-                  extra={land.canUpgrade ? <Badge status="success" text="可升级" /> : null}>
-                  <div style={{ marginBottom: 8 }}>
-                    <Tag color="blue">{land.name}</Tag>
-                    {land.nextLevel && <Tag color="green">下一级: {land.nextLevel.name}</Tag>}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                    成长 {land.growthReduction ? `${-(land.growthReduction * 100).toFixed(0)}%` : '+0%'}
-                    {' · '}
-                    收获 {land.harvestBonus ? `+${(land.harvestBonus * 100).toFixed(0)}%` : '+0%'}
-                  </div>
-                  <Progress percent={land.soilExp ? Math.round((land.soilExp / (land.nextLevel?.soilExpCost || 1)) * 100) : 0}
-                    size="small" format={() => `${land.soilExp || 0} / ${land.nextLevel?.soilExpCost || '?'}`} />
-                  <div style={{ marginTop: 12, fontSize: 12 }}>
-                    {[
-                      { label: '研究点', key: 'research', shared: true },
-                      { label: '土地经验', key: 'soilExp', shared: false },
-                      { label: '已修复藏品', key: 'collection', shared: true },
-                    ].map(r => {
-                      const req = (reqs[r.key] || {}) as any;
-                      return (
-                        <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span>{r.label}</span>
-                          <span>
-                            {req.current || 0} / {req.required || '?'}
-                            {req.met ? <Tag color="success" style={{ fontSize: 10, marginLeft: 4 }}>满足</Tag> : null}
-                            <Tag style={{ fontSize: 10, marginLeft: 4 }}>{r.shared ? '共享' : '本块'}</Tag>
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
+      {/* 下一级升级预览 */}
+      {next.level && (
+        <Card size="small" title={`下一级：${next.name}`} style={{ marginBottom: 20 }}>
+          <Row gutter={24}>
+            <Col span={8}>
+              <Statistic title="成长时间" value={`${next.growth_pct || 0}%`}
+                valueStyle={{ color: (next.growth_pct || 0) < 0 ? '#52c41a' : '#999', fontSize: 18 }} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="收获经验" value={`+${next.harvest_pct || 0}%`}
+                valueStyle={{ color: '#1677ff', fontSize: 18 }} />
+            </Col>
+            <Col span={8}>
+              <Statistic title="状态"
+                value={next.can_upgrade ? '可升级' : '条件不足'}
+                valueStyle={{ color: next.can_upgrade ? '#52c41a' : '#ff4d4f', fontSize: 18 }} />
+            </Col>
+          </Row>
+        </Card>
       )}
+
+      {/* 9 阶路线总览 */}
+      <Typography.Title level={5} style={{ marginBottom: 12 }}>晋级路线总览 · 共 9 阶</Typography.Title>
+      <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>
+        每次升级都会直接提升全农场所有土地的成长与收获收益。
+      </Typography.Paragraph>
+
+      <Row gutter={[12, 12]}>
+        {LAND_TIERS.map((t, i) => {
+          const isCurrent = t.lv === curLv;
+          const isPassed = t.lv < curLv;
+          const isNext = t.lv === curLv + 1;
+          const borderColor = isCurrent ? '#fa8c16' : isPassed ? '#52c41a' : isNext ? '#1677ff' : 'transparent';
+          return (
+            <Col key={t.lv} xs={12} sm={8} md={6} lg={4} xl={3}>
+              <Card size="small" bodyStyle={{ padding: '8px 10px' }}
+                style={{ borderTop: `3px solid ${borderColor}`, opacity: isPassed || isCurrent ? 1 : 0.5 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>
+                  Lv.{t.lv} {t.name}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>{t.desc}</div>
+                <div style={{ fontSize: 10, lineHeight: '16px' }}>
+                  <div>成长 <span style={{ color: t.growth < 0 ? '#52c41a' : '#999' }}>{t.growth}%</span></div>
+                  <div>收获 <span style={{ color: t.harvest > 0 ? '#1677ff' : '#999' }}>+{t.harvest}%</span></div>
+                  <div style={{ color: 'var(--text-tertiary)' }}>研究点 {t.rp.toLocaleString()}</div>
+                  <div style={{ color: 'var(--text-tertiary)' }}>藏品 {t.art} 件</div>
+                </div>
+                {isCurrent && <Tag color="orange" style={{ marginTop: 4 }}>当前</Tag>}
+                {isPassed && <Tag color="green" style={{ marginTop: 4 }}>已达成</Tag>}
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
     </div>
-  );
+  ) : <Empty description="暂无土地数据，请先启动引擎同步" />;
 
   return (
     <div>
@@ -147,66 +215,21 @@ export default function Museum() {
           农场博物馆 & 土地养成
         </Typography.Text>
         <Space>
-          <Link to={`/farm/${accountId}`}><ExperimentOutlined /> 农场</Link>
+          <Link to={`/farm/${accountId}`}><HomeOutlined /> 农场</Link>
         </Space>
       </div>
-      <Tabs items={[
-        { key: 'museum', label: '农场博物馆', children: museumTab },
-        { key: 'land', label: '土地养成', children: landTab },
-      ]} />
-    </div>
-  );
-}
 
-/** 展厅折叠组件 */
-function CollapseHallGroups({ groups }: { groups: any[] }) {
-  const [openHall, setOpenHall] = useState<string | null>(null);
-  return (
-    <Row gutter={[12, 12]}>
-      {groups.map((hall: any) => {
-        const restored = hall.items.filter((i: any) => i.restored).length;
-        return (
-          <Col key={hall.id} xs={12} sm={8} md={6} lg={4}>
-            <Card
-              size="small"
-              hoverable
-              onClick={() => setOpenHall(openHall === hall.id ? null : hall.id)}
-              style={{ borderTop: openHall === hall.id ? '2px solid #1677ff' : undefined }}
-            >
-              <Typography.Text strong style={{ fontSize: 13 }}>{hall.name || hall.id}</Typography.Text>
-              <br />
-              <Typography.Text style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                {restored} / {hall.total || hall.items.length}
-              </Typography.Text>
-            </Card>
-            {openHall === hall.id && (
-              <Card size="small" style={{ marginTop: 8 }}>
-                {['legend', 'rare', 'fine', 'normal'].filter(q =>
-                  hall.items.some((i: any) => i.rarity === q)
-                ).map(q => (
-                  <div key={q} style={{ marginBottom: 8 }}>
-                    <Tag color={RARITY_COLORS[q]}>{q === 'legend' ? '传说' : q === 'rare' ? '稀有' : q === 'fine' ? '良品' : '普通'}</Tag>
-                    <Row gutter={[4, 4]}>
-                      {hall.items.filter((i: any) => i.rarity === q).map((item: any) => (
-                        <Col key={item.id} span={24}>
-                          <Card size="small" style={{ opacity: item.discovered ? 1 : 0.4 }}>
-                            <Typography.Text style={{ fontSize: 12 }}>
-                              {item.discovered ? item.name : '???'}
-                            </Typography.Text>
-                            <Progress percent={item.fragmentCount ? Math.round((item.fragmentCount / item.requiredFragments) * 100) : 0}
-                              size="small" style={{ marginTop: 4 }}
-                              format={() => `${item.fragmentCount || 0}/${item.requiredFragments}`} />
-                          </Card>
-                        </Col>
-                      ))}
-                    </Row>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </Col>
-        );
-      })}
-    </Row>
+      {/* 两个 Tab：博物馆 + 土地养成 */}
+      <Card
+        tabList={[
+          { key: 'museum', tab: '博物馆' },
+          { key: 'land', tab: '土地养成' },
+        ]}
+        activeTabKey={activeTab}
+        onTabChange={setActiveTab}
+      >
+        {activeTab === 'museum' ? museumTab : landTab}
+      </Card>
+    </div>
   );
 }

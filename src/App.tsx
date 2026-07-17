@@ -38,6 +38,7 @@ export default function App() {
         <Route path="accounts" element={<Accounts />} />
         <Route path="accounts/:id" element={<AccountDetail />} />
         <Route path="config" element={<Config />} />
+        <Route path="config/:accountId" element={<Config />} />
         <Route path="logs" element={<Logs />} />
         <Route path="ai-chat" element={<AIChat />} />
         <Route path="dungeon" element={<Dungeon />} />

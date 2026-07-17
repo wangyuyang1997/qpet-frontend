@@ -1,21 +1,55 @@
 import { useEffect, useState } from 'react';
-import { Table, Switch, Select, Spin, message, Tabs, Button, Space, Typography } from 'antd';
-import { SyncOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { configApi, accountApi } from '../../api/client';
+import { Switch, Spin, message, Typography, Card, Row, Col } from 'antd';
+import { ThunderboltOutlined, ExperimentOutlined, TeamOutlined, HeartOutlined, ShopOutlined, SettingOutlined } from '@ant-design/icons';
+import { configApi } from '../../api/client';
+import { useAccount } from '../../store/useAccount';
+import { useParams, useNavigate } from 'react-router-dom';
+
+// 模块分组定义
+const MODULES: { key: string; label: string; icon: React.ReactNode; keys: string[] }[] = [
+  {
+    key: 'battle', label: '乐斗', icon: <ThunderboltOutlined />,
+    keys: ['auto_npc_fight', 'auto_tower', 'tower_use_revive', 'auto_world_boss', 'auto_tournament', 'exp_boost_enabled'],
+  },
+  {
+    key: 'farm', label: '农场', icon: <ExperimentOutlined />,
+    keys: ['auto_ad_farm'],
+  },
+  {
+    key: 'gang', label: '帮派', icon: <TeamOutlined />,
+    keys: ['auto_gang_boss', 'auto_gang_donate'],
+  },
+  {
+    key: 'social', label: '社交', icon: <HeartOutlined />,
+    keys: ['auto_marriage_boss', 'auto_marriage_gift', 'auto_marriage_flowers', 'auto_marriage_proposal', 'auto_friend_sync'],
+  },
+  {
+    key: 'supply', label: '商店补给', icon: <ShopOutlined />,
+    keys: ['auto_shop_challenge_book', 'auto_shop_stamina', 'supply_beads', 'supply_challenge_book', 'supply_flowers', 'supply_revive'],
+  },
+  {
+    key: 'system', label: '系统', icon: <SettingOutlined />,
+    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_chest', 'auto_class_upgrade', 'auto_equip', 'auto_upgrade'],
+  },
+];
 
 export default function Config() {
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [defs, setDefs] = useState<any[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [configs, setConfigs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState('');
+  const { accountId } = useParams<{ accountId: string }>();
+  const navigate = useNavigate();
+  const selectedAccount = useAccount((s) => s.selectedAccountId);
+  const accounts = useAccount((s) => s.accounts);
+  const selected = accountId || selectedAccount;
 
   useEffect(() => {
-    Promise.all([accountApi.list(), configApi.definitions()])
-      .then(([a, d]) => { setAccounts(a.data.accounts || a.data || []); setDefs(d.data.data || d.data || []); })
-      .finally(() => setLoading(false));
-  }, []);
+    if (!accountId && selectedAccount) {
+      navigate(`/config/${selectedAccount}`, { replace: true });
+    }
+  }, [accountId, selectedAccount]);
+
+  const [configs, setConfigs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { setLoading(false); }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -27,69 +61,51 @@ export default function Config() {
     const nv = value === 'true' ? 'false' : 'true';
     await configApi.update({ account_id: selected, key, value: nv });
     setConfigs((prev) => prev.map((c) => (c.key === key ? { ...c, value: nv } : c)));
-    message.success(`${key} → ${nv}`);
-  };
-
-  const doAction = async (action: string) => {
-    if (!selected) return;
-    setActionLoading(action);
-    try { await accountApi.action(selected, action); message.success(`${action} 已触发`); }
-    catch { message.error('操作失败'); }
-    setActionLoading('');
+    const desc = configs.find((c) => c.key === key)?.description || key;
+    message.success(`${desc} → ${nv === 'true' ? '开启' : '关闭'}`);
   };
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
 
-  const selectedAccount = accounts.find((a) => a.id === selected);
-
-  const ACTION_BUTTONS = [
-    { key: 'cycle', label: '主循环', icon: <SyncOutlined /> },
-    { key: 'fight', label: '战斗', icon: <PlayCircleOutlined /> },
-    { key: 'farm', label: '农场', icon: <PlayCircleOutlined /> },
-    { key: 'checkin', label: '签到', icon: <PlayCircleOutlined /> },
-    { key: 'auction', label: '拍卖快照', icon: <PlayCircleOutlined /> },
-    { key: 'buy-auction', label: '拍卖购买', icon: <PlayCircleOutlined /> },
-    { key: 'equip-all', label: '一键装备', icon: <PlayCircleOutlined /> },
-  ];
+  const cur = accounts.find((a: any) => a.id === selected);
+  const configMap: Record<string, any> = {};
+  for (const c of configs) configMap[c.key] = c;
 
   return (
     <div>
-      <h3 style={{ marginBottom: 24 }}>自动化配置</h3>
-      <div style={{ marginBottom: 20 }}>
-        <Select placeholder="选择账号" style={{ width: 300 }} value={selected} onChange={setSelected}
-          options={accounts.map((a) => ({ label: `${a.name} (Lv.${a.level})`, value: a.id }))} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Typography.Text style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700 }}>
+          自动化配置
+        </Typography.Text>
+        {cur && (
+          <Typography.Text style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+            {cur.name} · Lv.{cur.level} · {cur.running ? '🟢 运行中' : '⚪ 已停止'}
+          </Typography.Text>
+        )}
       </div>
 
-      {selected && (
-        <Tabs defaultActiveKey="switches">
-          <Tabs.TabPane tab="开关控制" key="switches">
-            <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-              <Table rowKey="key" dataSource={configs} pagination={false} size="middle" showHeader={false}
-                columns={[
-                  { title: '', dataIndex: 'key', width: 200, render: (v: string) => <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500 }}>{v}</span> },
-                  { title: '', dataIndex: 'description', render: (v: string) => <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{v}</span> },
-                  { title: '', width: 80, render: (_: any, r: any) =>
-                      r.value_type === 'bool' ? <Switch size="small" checked={r.value === 'true'} onChange={() => handleToggle(r.key, r.value)} /> : <span>{r.value}</span>
-                  },
-                ]}
-              />
-            </div>
-          </Tabs.TabPane>
-          <Tabs.TabPane tab="手动操作" key="actions">
-            <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', padding: '24px' }}>
-              {selectedAccount && (
-                <Typography.Text style={{ display: 'block', marginBottom: 16, fontSize: 14, color: 'var(--text-secondary)' }}>
-                  {selectedAccount.name} · Lv.{selectedAccount.level} · {selectedAccount.running ? '🟢 运行中' : '⚪ 已停止'}
-                </Typography.Text>
-              )}
-              <Space wrap size={8}>
-                {ACTION_BUTTONS.map((btn) => (
-                  <Button key={btn.key} icon={btn.icon} loading={actionLoading === btn.key} onClick={() => doAction(btn.key)}>{btn.label}</Button>
-                ))}
-              </Space>
-            </div>
-          </Tabs.TabPane>
-        </Tabs>
+      {selected ? (
+        <Row gutter={[16, 16]}>
+          {MODULES.map((mod) => {
+            const items = mod.keys.map((k) => configMap[k]).filter(Boolean);
+            if (items.length === 0) return null;
+            return (
+              <Col key={mod.key} xs={24} sm={12} md={12} lg={8} xl={6}>
+                <Card size="small" title={<span>{mod.icon} {mod.label}</span>}
+                  style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+                  {items.map((c: any) => (
+                    <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1 }}>{c.description}</span>
+                      <Switch size="small" checked={c.value === 'true'} onChange={() => handleToggle(c.key, c.value)} />
+                    </div>
+                  ))}
+                </Card>
+              </Col>
+            );
+          })}
+        </Row>
+      ) : (
+        <Typography.Text type="secondary">请在顶部选择一个角色</Typography.Text>
       )}
     </div>
   );

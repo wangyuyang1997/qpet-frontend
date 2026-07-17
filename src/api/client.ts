@@ -41,21 +41,32 @@ export const accountApi = {
   claim: (id: string) => api.post(`/accounts/${id}/claim`),
   unclaim: (id: string) => api.delete(`/accounts/${id}/unclaim`),
   character: (id: string) => api.get(`/accounts/${id}/character`),
+  equipment: (id: string) => api.get(`/accounts/${id}/equipment`),
+  inventory: (id: string) => api.get(`/accounts/${id}/inventory`),
+  gang: (id: string) => api.get(`/accounts/${id}/gang`),
+  skillTree: (id: string) => api.get(`/accounts/${id}/skill-tree`),
   farm: (id: string) => api.get(`/accounts/${id}/farm`),
+  museumProgress: (id: string) => api.get(`/accounts/${id}/museum-progress`),
+  collectionProgress: (id: string) => api.get(`/accounts/${id}/collection-progress`),
+  landStatus: (id: string) => api.get(`/accounts/${id}/land-status`),
+  inventoryProgress: (id: string) => api.get(`/accounts/${id}/inventory-progress`),
   ssoData: (id: string) => api.get(`/accounts/${id}/sso-data`),
   refreshMarriage: (id: string) => api.post(`/accounts/${id}/refresh-marriage`),
   updateCredentials: (id: string, data: { username: string; password: string }) =>
     api.put(`/accounts/${id}/credentials`, data),
+  getCredentials: (id: string) => api.get(`/accounts/${id}/credentials`),
+  regenerateKey: (id: string) => api.post(`/accounts/${id}/regenerate-key`),
   action: (id: string, action: string) => api.post(`/accounts/${id}/${action}`),
 };
 
 // Dashboard
 export const dashboardApi = {
-  logs: (params: { account?: string; date?: string; limit?: number }) => api.get('/logs', { params }),
+  logs: (params: { account?: string; date?: string; category?: string; limit?: number }) => api.get('/logs', { params }),
   stats: () => api.get('/logs/stats'),
   status: () => api.get('/status'),
   version: () => api.get('/version'),
   weekly: (accountId: string) => api.get('/dashboard/weekly', { params: { accountId } }),
+  weeklyAll: () => api.get('/dashboard/weekly-all'),
 };
 
 // Config

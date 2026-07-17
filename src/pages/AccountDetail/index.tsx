@@ -8,15 +8,25 @@ export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
   const [char, setChar] = useState<any>(null);
   const [farm, setFarm] = useState<any>(null);
+  const [equipment, setEquipment] = useState<any>(null);
   const [sso, setSso] = useState<any>(null);
-  const [marriage, setMarriage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([accountApi.character(id), accountApi.farm(id), accountApi.ssoData(id).catch(() => ({ data: null }))])
-      .then(([c, f, s]) => { setChar(c.data); setFarm(f.data); setSso(s.data); })
+    Promise.all([
+      accountApi.character(id),
+      accountApi.farm(id),
+      accountApi.equipment(id),
+      accountApi.ssoData(id).catch(() => ({ data: null })),
+    ])
+      .then(([c, f, e, s]) => {
+        setChar(c.data?.data || c.data || null);
+        setFarm(f.data?.data || f.data || null);
+        setEquipment(e.data?.data || e.data || null);
+        setSso(s.data);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -41,6 +51,8 @@ export default function AccountDetail() {
   ];
 
   const cell = (v: any) => v ?? '-';
+  const equipped = equipment?.equipped || {};
+  const equipList = Object.entries(equipped).map(([slot, item]: [string, any]) => ({ slot, ...item }));
 
   return (
     <div>
@@ -48,13 +60,13 @@ export default function AccountDetail() {
       <div style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 4 }}>
           <Typography.Text style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em' }}>
-            {char.nickname || id?.slice(0, 8)}
+            {char.nickname ?? id?.slice(0, 8)}
           </Typography.Text>
           <Tag style={{ fontSize: 13, fontWeight: 500 }}>Lv.{char.level}</Tag>
-          <Tag style={{ fontSize: 13, fontWeight: 500, background: 'var(--accent-subtle)', color: 'var(--accent)', border: 'none' }}>{char.class_name || '无职业'}</Tag>
+          <Tag style={{ fontSize: 13, fontWeight: 500, background: 'var(--accent-subtle)', color: 'var(--accent)', border: 'none' }}>{char.className || '无职业'}</Tag>
         </div>
         <Typography.Text style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-          战力 {char.combat_power?.toLocaleString() || 0}
+          战力 {(char.pve_power || 0).toLocaleString()}
         </Typography.Text>
       </div>
 
@@ -63,41 +75,41 @@ export default function AccountDetail() {
           <Descriptions bordered size="small" column={3} style={{ marginBottom: 24 }}>
             <Descriptions.Item label="昵称">{cell(char.nickname)}</Descriptions.Item>
             <Descriptions.Item label="等级">{char.level}</Descriptions.Item>
-            <Descriptions.Item label="职业">{cell(char.class_name)}</Descriptions.Item>
-            <Descriptions.Item label="战力">{char.combat_power?.toLocaleString()}</Descriptions.Item>
-            <Descriptions.Item label="PVP">{char.pvp_stats ? `${char.pvp_stats.wins || 0}W / ${char.pvp_stats.total || 0}T` : '-'}</Descriptions.Item>
-            <Descriptions.Item label="称号">{char.equipped_title?.name || '-'}</Descriptions.Item>
+            <Descriptions.Item label="职业">{cell(char.className)}</Descriptions.Item>
+            <Descriptions.Item label="战力">{(char.pve_power || 0).toLocaleString()}</Descriptions.Item>
+            <Descriptions.Item label="HP">{char.current_hp}/{char.max_hp}</Descriptions.Item>
+            <Descriptions.Item label="称号">{char.equippedTitle?.name || '-'}</Descriptions.Item>
           </Descriptions>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
             <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', padding: '16px 20px' }}>
-              <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>装备</Typography.Text>
-              <Table rowKey="slot" dataSource={char.equipment || []} pagination={false} size="small" showHeader={false}
+              <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>装备 ({equipList.length})</Typography.Text>
+              <Table rowKey="slot" dataSource={equipList} pagination={false} size="small" showHeader={false}
                 columns={[
                   { dataIndex: 'slot', width: 60, render: (v: string) => <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{v}</span> },
                   { dataIndex: 'name' },
-                  { dataIndex: 'score', width: 60, render: (v: number) => <span style={{ fontWeight: 600 }}>{v}</span> },
+                  { dataIndex: 'enhance', width: 50, render: (v: number) => v > 0 ? <Tag style={{ fontSize: 10 }}>+{v}</Tag> : null },
                 ]}
               />
             </div>
             <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', padding: '16px 20px' }}>
-              <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>武器</Typography.Text>
-              <Table rowKey="id" dataSource={char.weapons || []} pagination={false} size="small" showHeader={false}
+              <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>武器 ({char.weapons?.length || 0})</Typography.Text>
+              <Table rowKey="name" dataSource={char.weapons || []} pagination={false} size="small" showHeader={false}
                 columns={[
                   { dataIndex: 'name' },
-                  { dataIndex: 'type', width: 80, render: (v: string) => <Tag>{v}</Tag> },
+                  { dataIndex: 'enhance', width: 50, render: (v: number) => v > 0 ? <Tag style={{ fontSize: 10 }}>+{v}</Tag> : null },
                 ]}
               />
             </div>
           </div>
 
           <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', padding: '16px 20px' }}>
-            <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>技能</Typography.Text>
+            <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>技能 ({char.skills?.length || 0})</Typography.Text>
             <Table rowKey="name" dataSource={char.skills || []} pagination={false} size="small" showHeader={false}
               columns={[
                 { dataIndex: 'name', render: (v: string) => <span style={{ fontWeight: 500 }}>{v}</span> },
-                { dataIndex: 'level', width: 60 },
-                { dataIndex: 'type', width: 80, render: (v: string) => <Tag style={{ borderRadius: 100 }}>{v}</Tag> },
+                { dataIndex: 'level', width: 50 },
+                { dataIndex: 'type', width: 80, render: (v: string) => v ? <Tag style={{ borderRadius: 100 }}>{v}</Tag> : null },
               ]}
             />
           </div>
@@ -112,7 +124,7 @@ export default function AccountDetail() {
                 <Descriptions.Item label="今日经验">{farm.todayHarvestExp}</Descriptions.Item>
                 <Descriptions.Item label="农场等级">{farm.level}</Descriptions.Item>
                 <Descriptions.Item label="经验">{farm.experience}</Descriptions.Item>
-                <Descriptions.Item label="会员">{farm.is_premium ? <Tag color="gold">VIP</Tag> : <span>否</span>}</Descriptions.Item>
+                <Descriptions.Item label="会员">{farm.isPremium ? <Tag color="gold">VIP</Tag> : <span>否</span>}</Descriptions.Item>
               </Descriptions>
               <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', padding: '16px 20px' }}>
                 <Typography.Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>地块</Typography.Text>
@@ -122,7 +134,7 @@ export default function AccountDetail() {
                     { dataIndex: 'cropName', render: (v: string) => v || <span style={{ color: 'var(--text-tertiary)' }}>空地</span> },
                     { dataIndex: 'state', width: 80, render: (v: string) => {
                       const m: Record<string, string> = { growing: '生长中', ripe: '已成熟', withered: '已枯萎', empty: '空地' };
-                      return <span style={{ fontSize: 12, color: v === 'ripe' ? 'var(--green)' : v === 'withered' ? 'var(--red)' : 'var(--text-tertiary))' }}>{m[v] || v}</span>;
+                      return <span style={{ fontSize: 12, color: v === 'ripe' ? 'var(--green)' : v === 'withered' ? 'var(--red)' : 'var(--text-tertiary)' }}>{m[v] || v}</span>;
                     }},
                   ]}
                 />

@@ -20,10 +20,13 @@ export default function Auction() {
       fetch('/api/auction/snapshots?accountId=' + accountId, { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json()).catch(() => ({ data: [] })),
       accountApi.character(accountId),
+      accountApi.equipment(accountId).catch(() => ({ data: null })),
     ])
-      .then(([aRes, cRes]: any[]) => {
+      .then(([aRes, cRes, eRes]: any[]) => {
         setSnapshots(aRes.data?.items || aRes.data || []);
-        setChar(cRes.data);
+        const charData = cRes.data?.data || cRes.data || {};
+        const eqData = eRes?.data?.data || eRes?.data || {};
+        setChar({ ...charData, equipment_data: eqData });
       })
       .finally(() => setLoading(false));
   }, [accountId]);
@@ -43,10 +46,13 @@ export default function Auction() {
     return 0;
   });
 
-  // Current equipment for recommendation
-  const currentEq = char.equipment || [];
+  // Current equipment for recommendation — from equipment API
+  const eqData = char.equipment_data || {};
+  const equipped = eqData.equipped || {};
   const currentScores: Record<string, number> = {};
-  for (const eq of currentEq) currentScores[eq.slot] = eq.score || 0;
+  for (const [slot, item] of Object.entries(equipped) as [string, any][]) {
+    currentScores[slot] = item?.item_level || 0;
+  }
 
   const recommended = filtered
     .filter((item: any) => currentScores[item.slot] && (item.score || 0) > currentScores[item.slot] * 1.05)

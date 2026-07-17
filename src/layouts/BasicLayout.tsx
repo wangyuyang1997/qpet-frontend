@@ -31,7 +31,7 @@ const menuItems = [
   },
   {
     type: 'group' as const,
-    label: '全局',
+    label: '通用',
     children: [
       { key: '/accounts', icon: <UserOutlined />, label: '角色管理' },
       { key: '/logs', icon: <FileTextOutlined />, label: '运行日志' },
@@ -78,7 +78,7 @@ export default function BasicLayout() {
 
   const selectedKey = (() => {
     const seg = location.pathname.split('/').filter(Boolean);
-    const charPages = ['overview', 'farm', 'museum', 'battle', 'class', 'marriage', 'inventory'];
+    const charPages = ['overview', 'farm', 'museum', 'battle', 'class', 'marriage', 'inventory', 'config'];
     return seg.length >= 2 && charPages.includes(seg[0]) ? `/${seg[0]}` : `/${seg[0] || ''}`;
   })();
   const visibleItems = menuItems

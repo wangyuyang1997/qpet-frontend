@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
-import { Table, Select, DatePicker, Card, Tag, Space, Switch, Typography } from 'antd';
-import { dashboardApi, accountApi } from '../../api/client';
+import { DatePicker, Switch, Typography } from 'antd';
+import { dashboardApi } from '../../api/client';
+import { useAccount } from '../../store/useAccount';
 import dayjs from 'dayjs';
 
 const LEVEL_STYLE: Record<string, { bg: string; color: string }> = {
@@ -10,63 +11,95 @@ const LEVEL_STYLE: Record<string, { bg: string; color: string }> = {
   DEBUG: { bg: 'rgba(0,0,0,0.04)', color: '#aeaeb2' },
 };
 
-export default function Logs() {
+function LogPanel({ title, icon, category, accountId, date }: {
+  title: string; icon: string; category: string; accountId: string | null; date: string;
+}) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [filter, setFilter] = useState<{ account?: string; date?: string }>({});
+
+  useEffect(() => {
+    setLoading(true);
+    dashboardApi.logs({ account: accountId || undefined, category, date, limit: 200 }).then((r) => {
+      setLogs(r.data.logs || r.data.data || r.data || []);
+      setLoading(false);
+    });
+  }, [accountId, date, category]);
+
+  const count = logs.length;
+
+  return (
+    <div style={{
+      flex: 1, minWidth: 0, minHeight: 0,
+      border: '1px solid var(--border-subtle)',
+      borderRadius: 'var(--radius-lg)',
+      background: 'var(--bg-card)',
+      backdropFilter: 'var(--blur-glass)',
+      WebkitBackdropFilter: 'var(--blur-glass)',
+      boxShadow: 'var(--shadow-sm)',
+      padding: '12px 16px',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <Typography.Text strong style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, flexShrink: 0 }}>
+        {icon} {title} {count}条
+      </Typography.Text>
+      <div style={{ flex: 1, overflow: 'hidden auto', fontSize: 12, minHeight: 0 }}>
+        {loading ? (
+          <Typography.Text style={{ color: 'var(--text-tertiary)' }}>加载中...</Typography.Text>
+        ) : logs.length === 0 ? (
+          <Typography.Text style={{ color: 'var(--text-tertiary)' }}>暂无日志</Typography.Text>
+        ) : (
+          logs.map((l, i) => {
+            const s = LEVEL_STYLE[l.level] || LEVEL_STYLE.DEBUG;
+            return (
+              <div key={i} style={{ padding: '2px 0', fontFamily: 'var(--font-mono)', lineHeight: '18px' }}>
+                <span style={{ color: 'var(--text-tertiary)', marginRight: 8 }}>
+                  {l.created_at ? dayjs(l.created_at).format('HH:mm:ss') : '-'}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 600, padding: '0 4px', borderRadius: 100,
+                  background: s.bg, color: s.color, marginRight: 6,
+                }}>{l.level}</span>
+                <span style={{ color: 'var(--text-primary)' }}>{l.message}</span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+export default function Logs() {
+  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [sseEnabled, setSseEnabled] = useState(false);
   const [stats, setStats] = useState<any>({ today: 0, history: 0 });
   const eventSourceRef = useRef<EventSource | null>(null);
+  const selectedAccountId = useAccount((s) => s.selectedAccountId);
 
   useEffect(() => {
-    accountApi.list().then((r) => setAccounts(r.data.accounts || r.data || []));
-    dashboardApi.stats().then((r) => setStats(r.data));
+    dashboardApi.stats().then((r) => setStats(r.data?.data || r.data));
   }, []);
 
   useEffect(() => {
     if (sseEnabled) {
       const token = localStorage.getItem('token');
       const es = new EventSource(`/api/sse?_t=${token}`);
-      es.onmessage = (e) => {
-        try { const entry = JSON.parse(e.data); setLogs((prev) => [entry, ...prev].slice(0, 500)); } catch {}
-      };
+      es.onmessage = () => {}; // SSE will trigger re-fetch
       es.onerror = () => { es.close(); setSseEnabled(false); };
       eventSourceRef.current = es;
       return () => { es.close(); };
     }
   }, [sseEnabled]);
 
-  useEffect(() => {
-    setLoading(true);
-    dashboardApi.logs({ ...filter, limit: 500 }).then((r) => {
-      setLogs(r.data.logs || r.data.data || r.data || []);
-      setLoading(false);
-    });
-  }, [filter]);
-
-  const columns = [
-    { title: '', dataIndex: 'created_at', width: 140, render: (v: string) => (
-      <span style={{ fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>{v ? dayjs(v).format('MM-DD HH:mm:ss') : '-'}</span>
-    )},
-    { title: '', dataIndex: 'account_name', width: 90, render: (v: string) => v ? <span style={{ fontSize: 13, fontWeight: 500 }}>{v}</span> : '-' },
-    {
-      title: '', dataIndex: 'level', width: 60,
-      render: (v: string) => {
-        const s = LEVEL_STYLE[v] || LEVEL_STYLE.DEBUG;
-        return <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 6px', borderRadius: 100, background: s.bg, color: s.color, fontFamily: 'var(--font-mono)' }}>{v}</span>;
-      },
-    },
-    { title: '', dataIndex: 'message', render: (v: string) => (
-      <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{v}</span>
-    )},
-  ];
-
   return (
-    <div>
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ height: 'calc(100vh - 172px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          <h3 style={{ margin: 0 }}>运行日志</h3>
+          <Typography.Text style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700 }}>
+            运行日志
+          </Typography.Text>
           <div style={{ display: 'flex', gap: 24 }}>
             <div>
               <Typography.Text style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block' }}>今日</Typography.Text>
@@ -81,15 +114,19 @@ export default function Logs() {
         <Switch checkedChildren="SSE" unCheckedChildren="轮询" checked={sseEnabled} onChange={setSseEnabled} />
       </div>
 
-      <Space style={{ marginBottom: 16 }}>
-        <Select allowClear placeholder="全部账号" style={{ width: 200 }}
-          options={accounts.map((a) => ({ label: a.name, value: a.id }))}
-          onChange={(v) => setFilter((f) => ({ ...f, account: v }))} />
-        <DatePicker onChange={(d) => setFilter((f) => ({ ...f, date: d?.format('YYYY-MM-DD') }))} />
-      </Space>
+      <div style={{ marginBottom: 16, flexShrink: 0 }}>
+        <DatePicker value={dayjs(date)} onChange={(d) => setDate(d?.format('YYYY-MM-DD') || dayjs().format('YYYY-MM-DD'))} />
+      </div>
 
-      <div style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', backdropFilter: 'var(--blur-glass)', WebkitBackdropFilter: 'var(--blur-glass)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-        <Table rowKey={(_, i) => String(i)} dataSource={logs} columns={columns} loading={loading && !sseEnabled} size="middle" showHeader={false} pagination={{ size: 'small', pageSize: 50 }} />
+      {/* 上方：乐斗+农场 左右并排 */}
+      <div style={{ display: 'flex', gap: 24, flex: 1, minHeight: 260, marginBottom: 20 }}>
+        <LogPanel title="乐斗" icon="⚔" category="乐斗" accountId={selectedAccountId} date={date} />
+        <LogPanel title="农场" icon="🌾" category="农场" accountId={selectedAccountId} date={date} />
+      </div>
+
+      {/* 下方：系统日志 全宽 */}
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 180, maxHeight: 260, minWidth: 0 }}>
+        <LogPanel title="系统" icon="⚙" category="系统" accountId={selectedAccountId} date={date} />
       </div>
     </div>
   );

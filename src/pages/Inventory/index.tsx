@@ -1,75 +1,114 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Row, Col, Tag, Spin, Typography, Statistic, Table, Empty } from 'antd';
+import { Card, Row, Col, Tag, Typography, Statistic, Table, Empty, Spin, Tabs } from 'antd';
 import { accountApi } from '../../api/client';
+
+const TYPE_LABEL: Record<string, { label: string; color: string }> = {
+  bead:       { label: '魂珠',   color: '#722ed1' },
+  consumable: { label: '消耗品', color: '#1677ff' },
+  material:   { label: '材料',   color: '#52c41a' },
+  zodiac_core:{ label: '宝箱',   color: '#fa8c16' },
+  chest:      { label: '宝箱',   color: '#fa8c16' },
+  skill_book: { label: '技能书', color: '#eb2f96' },
+  weapon_book:{ label: '武器书', color: '#eb2f96' },
+};
 
 export default function Inventory() {
   const { accountId } = useParams<{ accountId: string }>();
-  const [char, setChar] = useState<any>(null);
+  const [items, setItems] = useState<any[]>([]);
+  const [char, setChar] = useState<any>({});
   const [loading, setLoading] = useState(true);
+  const [activeType, setActiveType] = useState<string>('all');
 
   useEffect(() => {
     if (!accountId) return;
-    accountApi.character(accountId)
-      .then((res: any) => setChar(res.data))
+    Promise.all([
+      accountApi.inventoryProgress(accountId).catch(() => ({ data: null })),
+      accountApi.character(accountId).catch(() => ({ data: null })),
+    ])
+      .then(([iRes, cRes]: any[]) => {
+        const invData = iRes?.data?.data || iRes?.data || {};
+        const charData = cRes?.data?.data || cRes?.data || {};
+        setItems(invData.items || []);
+        setChar(charData);
+      })
       .finally(() => setLoading(false));
   }, [accountId]);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
-  if (!char) return <Typography.Text type="secondary">暂无数据</Typography.Text>;
 
-  const inv = char.inventory || [];
+  // 从背包汇总关键道具
+  const forgeStones = items.filter((i: any) => i.item_type === 'material' && String(i.game_item_id||'').includes('forge')).reduce((s: number, i: any) => s + i.quantity, 0);
+  const abyssTickets = items.filter((i: any) => i.item_type === 'material' && String(i.game_item_id||'').includes('abyss')).reduce((s: number, i: any) => s + i.quantity, 0);
+  const expPotions = items.filter((i: any) => i.item_type === 'consumable' && String(i.game_item_id||'').includes('exp')).reduce((s: number, i: any) => s + i.quantity, 0);
+  const staminaPotions = items.filter((i: any) => i.item_type === 'consumable' && String(i.game_item_id||'').includes('stamina')).reduce((s: number, i: any) => s + i.quantity, 0);
 
-  const supplies = [
-    { key: 'revive', name: '还魂丹', count: char.revive_count ?? char.pve_stats?.revive_count ?? 0, switchKey: 'supply_revive' },
-    { key: 'challenge_book', name: '帮派挑战书', count: char.challenge_book_count ?? 0, switchKey: 'supply_challenge_book' },
-    { key: 'flowers', name: '鲜花', count: char.flower_count ?? 0, switchKey: 'supply_flowers' },
-    { key: 'beads', name: '魂珠', count: char.bead_count ?? 0, switchKey: 'supply_beads' },
+  // 按类型分组
+  const typeSet = [...new Set(items.map((i: any) => i.item_type as string))].filter(Boolean);
+  const filtered = activeType === 'all' ? items : items.filter((i: any) => i.item_type === activeType);
+
+  const tabItems = [
+    { key: 'all', label: `全部 ${items.length}` },
+    ...typeSet.map(t => {
+      const info = TYPE_LABEL[t] || { label: t, color: '#999' };
+      const count = items.filter((i: any) => i.item_type === t).length;
+      return { key: t, label: `${info.label} ${count}` };
+    }),
   ];
 
   return (
     <div>
       <Typography.Text style={{ fontSize: 28, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: '-0.04em', display: 'block', marginBottom: 20 }}>
-        背包 & 补给
+        背包
       </Typography.Text>
 
-      {/* Item list */}
-      <Card size="small" title="道具列表" style={{ marginBottom: 16 }}>
-        {inv.length === 0 ? <Empty description="暂无道具" /> : (
+      {/* 角色资源 */}
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Row gutter={[16, 16]}>
+          <Col span={4}><Statistic title="体力" value={`${char.stamina ?? '-'} / ${char.max_stamina ?? '-'}`} /></Col>
+          <Col span={4}><Statistic title="锻造石" value={forgeStones.toLocaleString()} /></Col>
+          <Col span={4}><Statistic title="深渊票" value={abyssTickets.toLocaleString()} /></Col>
+          <Col span={4}><Statistic title="经验药水" value={expPotions.toLocaleString()} suffix="瓶" /></Col>
+          <Col span={4}><Statistic title="体力药水" value={staminaPotions.toLocaleString()} suffix="瓶" /></Col>
+          <Col span={4}>
+            {char.exp_boost_charges > 0 ? (
+              <Statistic title="经验buff" value={`×${char.exp_boost_rate || 1}`} suffix={`${char.exp_boost_charges}次`} />
+            ) : (
+              <Statistic title="经验buff" value="无" />
+            )}
+          </Col>
+        </Row>
+      </Card>
+
+      {/* 道具列表 */}
+      <Card size="small" title="道具">
+        <Tabs activeKey={activeType} onChange={setActiveType} items={tabItems} style={{ marginBottom: 8 }} />
+        {filtered.length === 0 ? <Empty description="暂无道具" /> : (
           <Table
-            rowKey={(r: any) => r.itemId || r.id || r.name}
-            dataSource={inv} pagination={false} size="small"
+            rowKey={(r: any) => r.id}
+            dataSource={filtered}
+            pagination={false}
+            size="small"
             columns={[
-              { title: '名称', dataIndex: 'name', key: 'name' },
-              { title: '数量', dataIndex: 'quantity', key: 'qty', width: 80, render: (v: number) => <Tag>{v}</Tag> },
-              { title: '类型', dataIndex: 'type', key: 'type', width: 100, render: (v: string, r: any) => <Tag color="blue">{v || r.itemType || 'consumable'}</Tag> },
+              {
+                title: '名称', dataIndex: 'item_name', key: 'name', width: 220,
+                render: (v: string) => <Typography.Text strong>{v}</Typography.Text>,
+              },
+              {
+                title: '类型', dataIndex: 'item_type', key: 'type', width: 80,
+                render: (v: string) => {
+                  const info = TYPE_LABEL[v] || { label: v, color: '#999' };
+                  return <Tag color={info.color}>{info.label}</Tag>;
+                },
+              },
+              {
+                title: '数量', dataIndex: 'quantity', key: 'qty', width: 60, align: 'right',
+                render: (v: number) => <Tag>×{v}</Tag>,
+              },
+              { title: 'ID', dataIndex: 'game_item_id', key: 'id', width: 220, render: (v: string) => <Typography.Text type="secondary" style={{ fontSize: 11 }}>{v}</Typography.Text> },
             ]}
           />
         )}
-      </Card>
-
-      {/* Supply status */}
-      <Card size="small" title="补给状态">
-        <Row gutter={[16, 16]}>
-          {supplies.map(s => (
-            <Col key={s.key} span={6}>
-              <Statistic title={s.name} value={s.count} valueStyle={{ fontSize: 20 }} />
-              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                开关: {s.switchKey}
-              </div>
-            </Col>
-          ))}
-        </Row>
-        {char.exp_boost_charges !== undefined && (
-          <div style={{ marginTop: 16 }}>
-            <Tag color="orange" style={{ fontSize: 13, padding: '4px 12px' }}>
-              经验 BUFF: ×{char.exp_boost_rate || 1.5} · 剩余 {char.exp_boost_charges} 次
-            </Tag>
-          </div>
-        )}
-        <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-tertiary)' }}>
-          补给开关在「自动化」页面统一管理
-        </div>
       </Card>
     </div>
   );

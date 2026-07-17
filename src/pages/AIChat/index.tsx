@@ -1,19 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { Input, Button, Select, Typography } from 'antd';
+import { Input, Button, Typography } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
-import { accountApi } from '../../api/client';
+import { useAccount } from '../../store/useAccount';
 
 interface Message { role: 'user' | 'assistant'; content: string }
 
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [accountId, setAccountId] = useState<string | undefined>();
-  const [accounts, setAccounts] = useState<any[]>([]);
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const accountId = useAccount((s) => s.selectedAccountId);
 
-  useEffect(() => { accountApi.list().then((r) => setAccounts(r.data.accounts || r.data || [])); }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const send = async () => {
@@ -51,8 +49,6 @@ export default function AIChat() {
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 180px)' }}>
       <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ margin: 0 }}>AI 助手</h3>
-        <Select allowClear placeholder="选择账号上下文" style={{ width: 220 }}
-          options={accounts.map((a) => ({ label: a.name, value: a.id }))} onChange={setAccountId} />
       </div>
 
       <div style={{
