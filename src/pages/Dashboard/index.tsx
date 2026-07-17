@@ -120,6 +120,20 @@ export default function Dashboard() {
     }],
   }), [weekly]);
 
+  // 统一颜色映射：按等级降序排列所有账号，同一账号在饼图和折线图中颜色一致
+  const palette = [
+    '#0071e3', '#ff9500', '#34c759', '#ff3b30', '#5ac8fa', '#af52de', '#ff2d55', '#5856d6',
+    '#30b0c7', '#ff6b35', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06b6d4',
+  ];
+  const accountColorMap = useMemo(() => {
+    const sorted = [...accounts].sort((a, b) => {
+      const la = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
+      const lb = (allWeekly[b.id] || []).slice(-1)[0]?.level ?? b.level;
+      return lb - la;
+    });
+    return new Map(sorted.map((a, i) => [a.id, palette[i % palette.length]]));
+  }, [accounts, allWeekly]);
+
   // All accounts pie chart — 本周各角色经验占比
   const pieOption = useMemo(() => {
     const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
@@ -127,6 +141,7 @@ export default function Dashboard() {
     const pieData = accounts.map((a) => ({
       name: a.name,
       value: (merged[a.id] || []).slice(-1)[0]?.current_exp || 0,
+      itemStyle: { color: accountColorMap.get(a.id) },
     }));
     return {
       tooltip: { trigger: 'item', formatter: (p: any) => `${p.name}: ${p.value?.toLocaleString()} (${p.percent}%)` },
@@ -137,27 +152,26 @@ export default function Dashboard() {
         itemStyle: { borderColor: '#fff', borderWidth: 2 },
       }],
     };
-  }, [accounts, allWeekly, weekly, accountId]);
+  }, [accounts, allWeekly, weekly, accountId, accountColorMap]);
 
   // Multi-line chart for all accounts
   const dates = weekly.length > 0 ? weekly.map((r) => r.date?.slice(5) || '') : ['一', '二', '三', '四', '五', '六', '日'];
-  const colors = ['#0071e3', '#ff9500', '#34c759', '#ff3b30', '#5ac8fa', '#af52de'];
   const multiLineOption = useMemo(() => {
     // Build series: level progression, skip max-level (100), sort high→low
     const valid = accounts
       .filter((a) => {
         const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
-        return !data.every((v: number) => v === 0);
+        return !data.every((v: number) => v === 0) && !data.every((v: number) => v >= 100);
       })
       .sort((a, b) => {
         const la = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
         const lb = (allWeekly[b.id] || []).slice(-1)[0]?.level ?? b.level;
         return lb - la;
       });
-    const trendSeries = valid.map((a, i) => {
+    const trendSeries = valid.map((a) => {
         const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
         const lv = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
-        const c = colors[i % colors.length];
+        const c = accountColorMap.get(a.id) || palette[0];
         return {
           name: `${a.name || a.id} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
           itemStyle: { color: c }, lineStyle: { color: c, width: 2 },
