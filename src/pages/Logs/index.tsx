@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { DatePicker, Switch, Typography } from 'antd';
-import { dashboardApi } from '../../api/client';
+import { dashboardApi, accountApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
 import dayjs from 'dayjs';
 
@@ -70,6 +70,69 @@ function LogPanel({ title, icon, category, accountId, date }: {
   );
 }
 
+function ChestLogPanel({ accountId }: { accountId: string | null }) {
+  const [records, setRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!accountId) { setRecords([]); setLoading(false); return; }
+    setLoading(true);
+    accountApi.chestRecords(accountId, 50).then((r: any) => {
+      setRecords(r.data?.data || []);
+      setLoading(false);
+    });
+  }, [accountId]);
+
+  const count = records.length;
+
+  return (
+    <div style={{
+      flex: 1, minWidth: 0, minHeight: 0,
+      border: '1px solid var(--border-subtle)',
+      borderRadius: 'var(--radius-lg)',
+      background: 'var(--bg-card)',
+      backdropFilter: 'var(--blur-glass)',
+      WebkitBackdropFilter: 'var(--blur-glass)',
+      boxShadow: 'var(--shadow-sm)',
+      padding: '12px 16px',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <Typography.Text strong style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'block', marginBottom: 8, flexShrink: 0 }}>
+        📦 宝箱 {count}条
+      </Typography.Text>
+      <div style={{ flex: 1, overflow: 'hidden auto', fontSize: 12, minHeight: 0 }}>
+        {loading ? (
+          <Typography.Text style={{ color: 'var(--text-tertiary)' }}>加载中...</Typography.Text>
+        ) : !accountId ? (
+          <Typography.Text style={{ color: 'var(--text-tertiary)' }}>请选择角色</Typography.Text>
+        ) : records.length === 0 ? (
+          <Typography.Text style={{ color: 'var(--text-tertiary)' }}>暂无记录</Typography.Text>
+        ) : (
+          records.map((r, i) => {
+            const items = (r.drops || []).map((d: any) => `${d.item_name}×${d.quantity}`).join(', ');
+            const costLabel = r.cost === 0 ? '免费' : `${r.cost}EXP`;
+            return (
+              <div key={i} style={{ padding: '2px 0', fontFamily: 'var(--font-mono)', lineHeight: '18px' }}>
+                <span style={{ color: 'var(--text-tertiary)', marginRight: 6 }}>
+                  {r.opened_at ? dayjs(r.opened_at).format('MM-DD HH:mm') : '-'}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 600, padding: '0 5px', borderRadius: 100,
+                  background: r.cost === 0 ? 'rgba(52,199,89,0.1)' : 'rgba(0,113,227,0.08)',
+                  color: r.cost === 0 ? 'var(--green)' : 'var(--accent)',
+                  marginRight: 6,
+                }}>{costLabel}</span>
+                <span style={{ color: 'var(--text-primary)' }}>#{r.total_opens} {items}</span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 export default function Logs() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
@@ -124,9 +187,10 @@ export default function Logs() {
         <LogPanel title="农场" icon="🌾" category="农场" accountId={selectedAccountId} date={date} />
       </div>
 
-      {/* 下方：系统日志 全宽 */}
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 180, maxHeight: 260, minWidth: 0 }}>
+      {/* 下方：系统日志(左) + 宝箱记录(右) */}
+      <div style={{ display: 'flex', gap: 24, minHeight: 180, maxHeight: 280, minWidth: 0 }}>
         <LogPanel title="系统" icon="⚙" category="系统" accountId={selectedAccountId} date={date} />
+        <ChestLogPanel accountId={selectedAccountId} />
       </div>
     </div>
   );
