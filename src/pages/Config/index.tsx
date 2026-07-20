@@ -33,7 +33,7 @@ const LABELS: Record<string, { name: string; desc: string; icon: React.ReactNode
   supply_challenge_book:{ name: '挑战书补给',     desc: '挑战书不足时从背包补充',                     icon: <GiftOutlined /> },
   supply_flowers:      { name: '鲜花补给',        desc: '鲜花不足时从背包补充',                       icon: <GiftOutlined /> },
   supply_revive:       { name: '还魂丹补给',      desc: '还魂丹不足时从背包补充',                     icon: <GiftOutlined /> },
-  auto_checkin:        { name: '每日签到',        desc: '自动签到领取每日奖励',                       icon: <BellOutlined /> },
+  auto_checkin:        { name: '每日签到',        desc: '自动签到领取每日农场经验',                   icon: <BellOutlined /> },
   auto_ad_community:   { name: '社区广告',        desc: '自动领取社区广告奖励 +20 EXP',              icon: <ApiOutlined /> },
   auto_ad_stamina:     { name: '体力广告',        desc: '自动领取广告体力',                           icon: <ThunderboltOutlined /> },
   auto_class_upgrade:  { name: '职业技能',        desc: '自动分配职业天赋点数（默认关闭）',            icon: <ToolOutlined /> },
@@ -55,23 +55,31 @@ const SECTIONS: Section[] = [
   },
   {
     title: '农场',
-    keys: ['auto_ad_farm'],
+    keys: ['auto_ad_farm', 'auto_checkin'],
   },
   {
     title: '帮派',
     keys: ['auto_gang_boss'],
   },
   {
-    title: '社交',
-    keys: ['auto_marriage_boss', 'auto_marriage_gift', 'auto_marriage_flowers', 'auto_marriage_proposal', 'auto_friend_sync'],
+    title: '婚姻',
+    keys: ['auto_marriage_gift', 'auto_marriage_flowers', 'auto_marriage_proposal', 'auto_marriage_boss', 'auto_friend_sync'],
   },
   {
-    title: '商店补给',
-    keys: ['auto_shop_challenge_book', 'auto_shop_stamina', 'supply_beads', 'supply_challenge_book', 'supply_flowers', 'supply_revive', 'chest_budget'],
+    title: '背包补给',
+    keys: ['supply_beads', 'supply_challenge_book', 'supply_flowers', 'supply_revive'],
+  },
+  {
+    title: '商城补给',
+    keys: ['auto_shop_challenge_book', 'auto_shop_stamina'],
+  },
+  {
+    title: '广告',
+    keys: ['auto_ad_community', 'auto_ad_stamina'],
   },
   {
     title: '系统',
-    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_class_upgrade', 'auto_upgrade'],
+    keys: ['auto_class_upgrade', 'auto_upgrade', 'chest_budget'],
   },
 ];
 
