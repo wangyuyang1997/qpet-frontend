@@ -1,37 +1,190 @@
 import { useEffect, useState } from 'react';
-import { Switch, Spin, message, Typography, Card, Row, Col, Select } from 'antd';
-import { ThunderboltOutlined, ExperimentOutlined, TeamOutlined, HeartOutlined, ShopOutlined, SettingOutlined } from '@ant-design/icons';
+import { Switch, Spin, message, Typography, Select, Tag } from 'antd';
+import {
+  ThunderboltOutlined, ExperimentOutlined, TeamOutlined,
+  HeartOutlined, ShopOutlined, ToolOutlined, GiftOutlined,
+  BulbOutlined, RiseOutlined, SafetyOutlined, AimOutlined,
+  SyncOutlined, DollarOutlined, SendOutlined, ReloadOutlined,
+  CrownOutlined, BellOutlined, ApiOutlined,
+} from '@ant-design/icons';
 import { configApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
 import { useParams, useNavigate } from 'react-router-dom';
 
-// 模块分组定义
-const MODULES: { key: string; label: string; icon: React.ReactNode; keys: string[] }[] = [
+// ── 美化文案映射 ──
+
+const LABELS: Record<string, { name: string; desc: string; icon: React.ReactNode }> = {
+  auto_npc_fight:      { name: 'NPC 乐斗',       desc: '自动挑战 NPC，获得战斗经验与掉落',       icon: <ThunderboltOutlined /> },
+  auto_tower:          { name: '斗神塔',          desc: '自动爬塔，逐层推进',                       icon: <RiseOutlined /> },
+  tower_use_revive:    { name: '塔内复活',        desc: '免费次数用完时消耗还魂丹继续挑战',          icon: <ReloadOutlined /> },
+  auto_world_boss:     { name: '世界 BOSS',       desc: '自动挑战世界 BOSS',                        icon: <AimOutlined /> },
+  auto_tournament:     { name: '武林 / 菜鸟大会', desc: 'Lv.100 自动报名两个赛事',                  icon: <CrownOutlined /> },
+  exp_boost_enabled:   { name: '经验药水',        desc: '经验加成不足时自动从背包补充',              icon: <BulbOutlined /> },
+  auto_ad_farm:        { name: '农场广告',        desc: '自动领取农场广告奖励 +20 EXP',             icon: <ExperimentOutlined /> },
+  auto_gang_boss:      { name: '帮派 BOSS',       desc: '自动挑战帮派 BOSS，获得贡献',              icon: <TeamOutlined /> },
+  auto_marriage_boss:  { name: '夫妻 BOSS',       desc: '与配偶组队挑战大色魔',                     icon: <HeartOutlined /> },
+  auto_marriage_gift:  { name: '婚内送花',        desc: '每日向配偶赠送鲜花提升亲密度',              icon: <SendOutlined /> },
+  auto_marriage_flowers:{ name: '好友送花',       desc: '向绑定对象送花，100 亲密度自动求婚',        icon: <HeartOutlined /> },
+  auto_marriage_proposal:{ name: '自动求婚',      desc: '亲密度达标后自动发起 / 接受求婚',           icon: <HeartOutlined /> },
+  auto_friend_sync:    { name: '好友同步',        desc: '托管账号之间自动互加好友',                  icon: <SyncOutlined /> },
+  auto_shop_challenge_book:{ name: '帮派挑战书',  desc: '从商店自动购买帮派挑战书',                  icon: <ShopOutlined /> },
+  auto_shop_stamina:   { name: '体力道具',        desc: '从商店自动购买体力面包 / 药水',             icon: <DollarOutlined /> },
+  supply_beads:        { name: '魂珠补给',        desc: '魂珠不足时自动从背包开箱补充',              icon: <GiftOutlined /> },
+  supply_challenge_book:{ name: '挑战书补给',     desc: '挑战书不足时从背包补充',                     icon: <GiftOutlined /> },
+  supply_flowers:      { name: '鲜花补给',        desc: '鲜花不足时从背包补充',                       icon: <GiftOutlined /> },
+  supply_revive:       { name: '还魂丹补给',      desc: '还魂丹不足时从背包补充',                     icon: <GiftOutlined /> },
+  auto_checkin:        { name: '每日签到',        desc: '自动签到领取每日奖励',                       icon: <BellOutlined /> },
+  auto_ad_community:   { name: '社区广告',        desc: '自动领取社区广告奖励 +20 EXP',              icon: <ApiOutlined /> },
+  auto_ad_stamina:     { name: '体力广告',        desc: '自动领取广告体力',                           icon: <ThunderboltOutlined /> },
+  auto_chest:          { name: '展览厅宝箱',      desc: '自动开启展览厅免费 / 付费宝箱',              icon: <GiftOutlined /> },
+  auto_class_upgrade:  { name: '职业技能',        desc: '自动分配职业天赋点数',                       icon: <ToolOutlined /> },
+  auto_equip:          { name: '装备替换',        desc: '自动对比穿戴更优装备',                       icon: <SafetyOutlined /> },
+  auto_upgrade:        { name: '魂珠合成',        desc: '自动合成低等级魂珠',                         icon: <ToolOutlined /> },
+  chest_budget:        { name: '宝箱预算',        desc: '每次自动开宝箱的经验消耗上限',              icon: <DollarOutlined /> },
+};
+
+// ── 分组 ──
+
+interface Section {
+  title: string;
+  keys: string[];
+}
+
+const SECTIONS: Section[] = [
   {
-    key: 'battle', label: '乐斗', icon: <ThunderboltOutlined />,
+    title: '乐斗',
     keys: ['auto_npc_fight', 'auto_tower', 'tower_use_revive', 'auto_world_boss', 'auto_tournament', 'exp_boost_enabled'],
   },
   {
-    key: 'farm', label: '农场', icon: <ExperimentOutlined />,
+    title: '农场',
     keys: ['auto_ad_farm'],
   },
   {
-    key: 'gang', label: '帮派', icon: <TeamOutlined />,
+    title: '帮派',
     keys: ['auto_gang_boss'],
   },
   {
-    key: 'social', label: '社交', icon: <HeartOutlined />,
+    title: '社交',
     keys: ['auto_marriage_boss', 'auto_marriage_gift', 'auto_marriage_flowers', 'auto_marriage_proposal', 'auto_friend_sync'],
   },
   {
-    key: 'supply', label: '商店补给', icon: <ShopOutlined />,
-    keys: ['auto_shop_challenge_book', 'auto_shop_stamina', 'supply_beads', 'supply_challenge_book', 'supply_flowers', 'supply_revive'],
+    title: '商店补给',
+    keys: ['auto_shop_challenge_book', 'auto_shop_stamina', 'supply_beads', 'supply_challenge_book', 'supply_flowers', 'supply_revive', 'chest_budget'],
   },
   {
-    key: 'system', label: '系统', icon: <SettingOutlined />,
-    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_chest', 'auto_class_upgrade', 'auto_equip', 'auto_upgrade', 'chest_budget'],
+    title: '系统',
+    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_chest', 'auto_class_upgrade', 'auto_equip', 'auto_upgrade'],
   },
 ];
+
+// ── 样式 ──
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    padding: '28px 32px 48px',
+    maxWidth: 780,
+    margin: '0 auto',
+    animation: 'fadeInUp 0.4s ease both',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  title: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 28,
+    fontWeight: 700,
+    letterSpacing: '-0.024em',
+    color: 'var(--text-primary)',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'var(--text-secondary)',
+    fontFamily: 'var(--font-body)',
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    marginBottom: 10,
+    paddingLeft: 4,
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '13px 16px',
+    borderRadius: 'var(--radius-sm)',
+    transition: 'background 0.15s ease',
+    marginBottom: 2,
+  },
+  rowLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  iconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 'var(--radius-sm)',
+    background: 'var(--accent-subtle)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 15,
+    color: 'var(--accent)',
+    flexShrink: 0,
+  },
+  rowText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 1,
+    minWidth: 0,
+  },
+  rowName: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: 'var(--text-primary)',
+    fontFamily: 'var(--font-body)',
+    letterSpacing: '-0.01em',
+    lineHeight: 1.3,
+  },
+  rowDesc: {
+    fontSize: 12,
+    color: 'var(--text-tertiary)',
+    lineHeight: 1.4,
+  },
+  control: {
+    flexShrink: 0,
+    marginLeft: 16,
+  },
+  badge: {
+    fontSize: 11,
+    fontWeight: 600,
+    marginLeft: 6,
+    padding: '0 6px',
+    borderRadius: 100,
+    background: 'rgba(0,113,227,0.08)',
+    color: 'var(--accent)',
+    lineHeight: '18px',
+  },
+  chipRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+};
 
 export default function Config() {
   const { accountId } = useParams<{ accountId: string }>();
@@ -49,11 +202,13 @@ export default function Config() {
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { setLoading(false); }, []);
-
   useEffect(() => {
     if (!selected) return;
-    configApi.get(selected).then((r) => setConfigs(r.data.data || r.data || []));
+    setLoading(true);
+    configApi.get(selected).then((r) => {
+      setConfigs(r.data.data || r.data || []);
+      setLoading(false);
+    });
   }, [selected]);
 
   const handleToggle = async (key: string, value: string) => {
@@ -61,17 +216,32 @@ export default function Config() {
     const nv = value === 'true' ? 'false' : 'true';
     await configApi.update({ account_id: selected, key, value: nv });
     setConfigs((prev) => prev.map((c) => (c.key === key ? { ...c, value: nv } : c)));
-    const desc = configs.find((c) => c.key === key)?.description || key;
-    message.success(`${desc} → ${nv === 'true' ? '开启' : '关闭'}`);
   };
 
   const handleSelect = async (key: string, value: string) => {
     if (!selected) return;
     await configApi.update({ account_id: selected, key, value });
     setConfigs((prev) => prev.map((c) => (c.key === key ? { ...c, value } : c)));
-    const desc = configs.find((c) => c.key === key)?.description || key;
-    message.success(`${desc} → ${value}`);
   };
+
+  const cur = accounts.find((a: any) => a.id === selected);
+  const configMap: Record<string, any> = {};
+  for (const c of configs) configMap[c.key] = c;
+
+  // Count enabled
+  const enabledCount = configs.filter((c) => c.value === 'true').length;
+
+  if (!selected) {
+    return (
+      <div style={styles.page}>
+        <Typography.Text type="secondary" style={{ fontSize: 15 }}>请在顶部选择一个角色</Typography.Text>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
+  }
 
   const renderControl = (c: any) => {
     if (c.key === 'chest_budget') {
@@ -79,13 +249,13 @@ export default function Config() {
         <Select
           size="small"
           value={c.value}
-          style={{ width: 90 }}
+          style={{ width: 96 }}
           onChange={(v) => handleSelect(c.key, v)}
           options={[
             { value: 'free', label: '仅免费' },
-            { value: '100', label: '100 EXP' },
-            { value: '200', label: '200 EXP' },
-            { value: '300', label: '300 EXP' },
+            { value: '100', label: '≤ 100' },
+            { value: '200', label: '≤ 200' },
+            { value: '300', label: '≤ 300' },
           ]}
         />
       );
@@ -93,48 +263,74 @@ export default function Config() {
     return <Switch size="small" checked={c.value === 'true'} onChange={() => handleToggle(c.key, c.value)} />;
   };
 
-  if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
-
-  const cur = accounts.find((a: any) => a.id === selected);
-  const configMap: Record<string, any> = {};
-  for (const c of configs) configMap[c.key] = c;
-
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <Typography.Text style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700 }}>
-          自动化配置
-        </Typography.Text>
-        {cur && (
-          <Typography.Text style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-            {cur.name} · Lv.{cur.level} · {cur.running ? '🟢 运行中' : '⚪ 已停止'}
-          </Typography.Text>
-        )}
+    <div style={styles.page}>
+      {/* ── Header ── */}
+      <div style={styles.header}>
+        <div>
+          <h1 style={{ ...styles.title, margin: 0 }}>自动化配置</h1>
+          {cur && (
+            <div style={{ ...styles.subtitle, marginTop: 4 }}>
+              {cur.name} · Lv.{cur.level}
+              <span style={{ marginLeft: 10, color: cur.running ? 'var(--green)' : 'var(--text-tertiary)' }}>
+                {cur.running ? '● 运行中' : '○ 已停止'}
+              </span>
+            </div>
+          )}
+        </div>
+        <Tag style={{
+          borderRadius: 100,
+          fontSize: 12,
+          fontWeight: 500,
+          padding: '2px 12px',
+          background: 'var(--accent-subtle)',
+          color: 'var(--accent)',
+          border: 'none',
+        }}>
+          {enabledCount}/{configs.length} 项开启
+        </Tag>
       </div>
 
-      {selected ? (
-        <Row gutter={[16, 16]}>
-          {MODULES.map((mod) => {
-            const items = mod.keys.map((k) => configMap[k]).filter(Boolean);
-            if (items.length === 0) return null;
-            return (
-              <Col key={mod.key} xs={24} sm={12} md={12} lg={8} xl={6}>
-                <Card size="small" title={<span>{mod.icon} {mod.label}</span>}
-                  style={{ borderRadius: 'var(--radius-lg)', background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
-                  {items.map((c: any) => (
-                    <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1 }}>{c.description}</span>
-                      {renderControl(c)}
+      {/* ── Sections ── */}
+      {SECTIONS.map((sec, si) => {
+        const rows = sec.keys.map((k) => {
+          const c = configMap[k];
+          if (!c) return null;
+          const lb = LABELS[k] || { name: k, desc: c.description || '', icon: null };
+          return { key: k, config: c, ...lb };
+        }).filter(Boolean) as any[];
+
+        if (rows.length === 0) return null;
+
+        return (
+          <div key={sec.title} style={{ ...styles.section, animationDelay: `${0.08 * si}s` }}>
+            <div style={styles.sectionTitle}>{sec.title}</div>
+            {rows.map((row) => (
+              <div
+                key={row.key}
+                style={styles.row}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = 'transparent';
+                }}
+              >
+                <div style={styles.rowLeft}>
+                  <div style={styles.iconBox}>{row.icon}</div>
+                  <div style={styles.rowText}>
+                    <div style={styles.chipRow}>
+                      <span style={styles.rowName}>{row.name}</span>
                     </div>
-                  ))}
-                </Card>
-              </Col>
-            );
-          })}
-        </Row>
-      ) : (
-        <Typography.Text type="secondary">请在顶部选择一个角色</Typography.Text>
-      )}
+                    <span style={styles.rowDesc}>{row.desc}</span>
+                  </div>
+                </div>
+                <div style={styles.control}>{renderControl(row.config)}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
