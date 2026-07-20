@@ -205,17 +205,28 @@ export default function Config() {
 
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const firstLoadRef = useRef(true);
+  const cacheRef = useRef<Map<string, any[]>>(new Map());
+  const fetchingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!selected) return;
-    if (firstLoadRef.current) {
+    // 缓存命中：立即展示，后台静默刷新
+    const cached = cacheRef.current.get(selected);
+    if (cached) {
+      setConfigs(cached);
+    } else {
       setLoading(true);
     }
+    // 防重复请求
+    if (fetchingRef.current.has(selected)) return;
+    fetchingRef.current.add(selected);
     configApi.get(selected).then((r) => {
-      setConfigs(r.data.data || r.data || []);
+      const data = r.data.data || r.data || [];
+      cacheRef.current.set(selected, data);
+      setConfigs(data);
+    }).finally(() => {
       setLoading(false);
-      firstLoadRef.current = false;
+      fetchingRef.current.delete(selected);
     });
   }, [selected]);
 
@@ -223,13 +234,21 @@ export default function Config() {
     if (!selected) return;
     const nv = value === 'true' ? 'false' : 'true';
     await configApi.update({ account_id: selected, key, value: nv });
-    setConfigs((prev) => prev.map((c) => (c.key === key ? { ...c, value: nv } : c)));
+    setConfigs((prev) => {
+      const next = prev.map((c) => (c.key === key ? { ...c, value: nv } : c));
+      cacheRef.current.set(selected, next);
+      return next;
+    });
   };
 
   const handleSelect = async (key: string, value: string) => {
     if (!selected) return;
     await configApi.update({ account_id: selected, key, value });
-    setConfigs((prev) => prev.map((c) => (c.key === key ? { ...c, value } : c)));
+    setConfigs((prev) => {
+      const next = prev.map((c) => (c.key === key ? { ...c, value } : c));
+      cacheRef.current.set(selected, next);
+      return next;
+    });
   };
 
   const cur = accounts.find((a: any) => a.id === selected);
