@@ -106,19 +106,32 @@ export default function Dashboard() {
   const todayExp = (todayRow?.today_harvest_exp || 0);
   const yesterdayExp = yesterdayRow?.today_harvest_exp;
 
-  // Current character weekly trend chart
-  const trendOption = useMemo(() => ({
-    grid: { top: 8, right: 16, bottom: 4, left: 44 },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: weekly.map((r) => r.date?.slice(5) || ''), axisLabel: { fontSize: 11, color: '#aeaeb2' } },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)' } }, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
-    series: [{
-      type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
-      data: weekly.map((r) => r.today_harvest_exp || 0),
-      lineStyle: { color: '#0071e3', width: 2 }, itemStyle: { color: '#0071e3' },
-      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,113,227,0.12)' }, { offset: 1, color: 'rgba(0,113,227,0)' }] } },
-    }],
-  }), [weekly]);
+  // Current character weekly trend chart — 固定7天，缺失填0
+  const trendOption = useMemo(() => {
+    const expByDate: Record<string, number> = {};
+    for (const r of weekly) {
+      if (r.date) expByDate[r.date] = r.today_harvest_exp || 0;
+    }
+    const trendDates: string[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      trendDates.push(d.toISOString().slice(0, 10));
+    }
+    return {
+      grid: { top: 8, right: 16, bottom: 4, left: 44 },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: trendDates.map((d) => d.slice(5)), axisLabel: { fontSize: 11, color: '#aeaeb2' } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)' } }, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
+      series: [{
+        type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
+        data: trendDates.map((d) => expByDate[d] || 0),
+        lineStyle: { color: '#0071e3', width: 2 }, itemStyle: { color: '#0071e3' },
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(0,113,227,0.12)' }, { offset: 1, color: 'rgba(0,113,227,0)' }] } },
+      }],
+    };
+  }, [weekly]);
 
   // 统一颜色映射：按等级降序排列所有账号，同一账号在饼图和折线图中颜色一致
   const palette = [
