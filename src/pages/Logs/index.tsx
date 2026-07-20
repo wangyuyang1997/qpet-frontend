@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { DatePicker, Switch, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { DatePicker, Typography } from 'antd';
 import { dashboardApi, accountApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
 import dayjs from 'dayjs';
@@ -136,25 +136,12 @@ function ChestLogPanel({ accountId }: { accountId: string | null }) {
 
 export default function Logs() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
-  const [sseEnabled, setSseEnabled] = useState(false);
   const [stats, setStats] = useState<any>({ today: 0, history: 0 });
-  const eventSourceRef = useRef<EventSource | null>(null);
   const selectedAccountId = useAccount((s) => s.selectedAccountId);
 
   useEffect(() => {
     dashboardApi.stats().then((r) => setStats(r.data?.data || r.data));
   }, []);
-
-  useEffect(() => {
-    if (sseEnabled) {
-      const token = localStorage.getItem('token');
-      const es = new EventSource(`/api/sse?_t=${token}`);
-      es.onmessage = () => {}; // SSE will trigger re-fetch
-      es.onerror = () => { es.close(); setSseEnabled(false); };
-      eventSourceRef.current = es;
-      return () => { es.close(); };
-    }
-  }, [sseEnabled]);
 
   return (
     <div style={{ height: 'calc(100vh - 172px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -174,7 +161,6 @@ export default function Logs() {
             </div>
           </div>
         </div>
-        <Switch checkedChildren="SSE" unCheckedChildren="轮询" checked={sseEnabled} onChange={setSseEnabled} />
       </div>
 
       <div style={{ marginBottom: 16, flexShrink: 0 }}>
