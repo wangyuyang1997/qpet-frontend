@@ -169,11 +169,22 @@ export default function Dashboard() {
     }
     const dates = [...dateSet].sort().map((d) => d.slice(5));
 
+    // Build level map per account for date alignment
+    const levelByDate: Record<string, Record<string, number>> = {};
+    for (const [aid, recs] of Object.entries(merged)) {
+      levelByDate[aid] = {};
+      for (const r of (recs as WeeklyRow[])) {
+        if (r.date) levelByDate[aid][r.date] = r.level ?? 0;
+      }
+    }
+
     // Build series: level progression, skip max-level (100), sort high→low
+    const fullDates = [...dateSet].sort();
     const valid = accounts
       .filter((a) => {
-        const data = (merged[a.id] || []).map((r: any) => r.level ?? 0);
-        return !data.every((v: number) => v === 0) && !data.every((v: number) => v >= 100);
+        const levels = fullDates.map((d) => levelByDate[a.id]?.[d]).filter((v): v is number => v != null);
+        if (levels.length === 0) return false;
+        return !levels.every((v) => v === 0) && !levels.every((v) => v >= 100);
       })
       .sort((a, b) => {
         const la = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
@@ -181,11 +192,13 @@ export default function Dashboard() {
         return lb - la;
       });
     const trendSeries = valid.map((a) => {
-        const data = (merged[a.id] || []).map((r: any) => r.level ?? 0);
+        // Align level data to shared date axis — missing dates = null
+        const data = fullDates.map((d) => levelByDate[a.id]?.[d] ?? null);
         const lv = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
         const c = accountColorMap.get(a.id) || palette[0];
         return {
           name: `${a.name || a.id} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
+          connectNulls: false,
           itemStyle: { color: c }, lineStyle: { color: c, width: 2 },
         };
       }) as any[];
