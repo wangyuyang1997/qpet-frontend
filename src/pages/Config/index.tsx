@@ -36,7 +36,6 @@ const LABELS: Record<string, { name: string; desc: string; icon: React.ReactNode
   auto_checkin:        { name: '每日签到',        desc: '自动签到领取每日奖励',                       icon: <BellOutlined /> },
   auto_ad_community:   { name: '社区广告',        desc: '自动领取社区广告奖励 +20 EXP',              icon: <ApiOutlined /> },
   auto_ad_stamina:     { name: '体力广告',        desc: '自动领取广告体力',                           icon: <ThunderboltOutlined /> },
-  auto_chest:          { name: '展览厅宝箱',      desc: '自动开启展览厅免费 / 付费宝箱',              icon: <GiftOutlined /> },
   auto_class_upgrade:  { name: '职业技能',        desc: '自动分配职业天赋点数（默认关闭）',            icon: <ToolOutlined /> },
   auto_upgrade:        { name: '魂珠合成',        desc: '自动合成低等级魂珠',                         icon: <ToolOutlined /> },
   chest_budget:        { name: '宝箱预算',        desc: '每次自动开宝箱的经验消耗上限',              icon: <DollarOutlined /> },
@@ -72,7 +71,7 @@ const SECTIONS: Section[] = [
   },
   {
     title: '系统',
-    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_chest', 'auto_class_upgrade', 'auto_upgrade'],
+    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_class_upgrade', 'auto_upgrade'],
   },
 ];
 
