@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Switch, Spin, message, Typography, Select, Tag } from 'antd';
 import {
   ThunderboltOutlined, ExperimentOutlined, TeamOutlined,
@@ -205,13 +205,17 @@ export default function Config() {
 
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const firstLoadRef = useRef(true);
 
   useEffect(() => {
     if (!selected) return;
-    setLoading(true);
+    if (firstLoadRef.current) {
+      setLoading(true);
+    }
     configApi.get(selected).then((r) => {
       setConfigs(r.data.data || r.data || []);
       setLoading(false);
+      firstLoadRef.current = false;
     });
   }, [selected]);
 
