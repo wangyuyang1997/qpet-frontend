@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Switch, Spin, message, Typography, Card, Row, Col } from 'antd';
+import { Switch, Spin, message, Typography, Card, Row, Col, Select } from 'antd';
 import { ThunderboltOutlined, ExperimentOutlined, TeamOutlined, HeartOutlined, ShopOutlined, SettingOutlined } from '@ant-design/icons';
 import { configApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
@@ -29,7 +29,7 @@ const MODULES: { key: string; label: string; icon: React.ReactNode; keys: string
   },
   {
     key: 'system', label: '系统', icon: <SettingOutlined />,
-    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_chest', 'auto_class_upgrade', 'auto_equip', 'auto_upgrade'],
+    keys: ['auto_checkin', 'auto_ad_community', 'auto_ad_stamina', 'auto_chest', 'auto_class_upgrade', 'auto_equip', 'auto_upgrade', 'chest_budget'],
   },
 ];
 
@@ -65,6 +65,34 @@ export default function Config() {
     message.success(`${desc} → ${nv === 'true' ? '开启' : '关闭'}`);
   };
 
+  const handleSelect = async (key: string, value: string) => {
+    if (!selected) return;
+    await configApi.update({ account_id: selected, key, value });
+    setConfigs((prev) => prev.map((c) => (c.key === key ? { ...c, value } : c)));
+    const desc = configs.find((c) => c.key === key)?.description || key;
+    message.success(`${desc} → ${value}`);
+  };
+
+  const renderControl = (c: any) => {
+    if (c.key === 'chest_budget') {
+      return (
+        <Select
+          size="small"
+          value={c.value}
+          style={{ width: 90 }}
+          onChange={(v) => handleSelect(c.key, v)}
+          options={[
+            { value: 'free', label: '仅免费' },
+            { value: '100', label: '100 EXP' },
+            { value: '200', label: '200 EXP' },
+            { value: '300', label: '300 EXP' },
+          ]}
+        />
+      );
+    }
+    return <Switch size="small" checked={c.value === 'true'} onChange={() => handleToggle(c.key, c.value)} />;
+  };
+
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
 
   const cur = accounts.find((a: any) => a.id === selected);
@@ -96,7 +124,7 @@ export default function Config() {
                   {items.map((c: any) => (
                     <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0' }}>
                       <span style={{ fontSize: 13, color: 'var(--text-secondary)', flex: 1 }}>{c.description}</span>
-                      <Switch size="small" checked={c.value === 'true'} onChange={() => handleToggle(c.key, c.value)} />
+                      {renderControl(c)}
                     </div>
                   ))}
                 </Card>
