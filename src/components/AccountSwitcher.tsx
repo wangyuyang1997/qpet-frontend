@@ -6,7 +6,7 @@ import { useAccount, AccountSummary } from '../store/useAccount';
 import { accountApi } from '../api/client';
 import ContextMenu, { ContextMenuItem } from './ContextMenu';
 
-const charPages = ['overview', 'farm', 'museum', 'battle', 'class', 'marriage', 'inventory'];
+const charPages = ['overview', 'farm', 'museum', 'battle', 'class', 'marriage', 'inventory', 'config', 'logs', 'gang'];
 
 function truncName(name: string): string {
   let bytes = 0;
