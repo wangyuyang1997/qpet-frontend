@@ -154,23 +154,35 @@ export default function Dashboard() {
     };
   }, [accounts, allWeekly, weekly, accountId, accountColorMap]);
 
-  // Multi-line chart for all accounts
-  const dates = weekly.length > 0 ? weekly.map((r) => r.date?.slice(5) || '') : ['一', '二', '三', '四', '五', '六', '日'];
+  // Multi-line chart for all accounts — 数据不受当前角色切换影响
   const multiLineOption = useMemo(() => {
+    // Merge current account's weekly into allWeekly (same as pie chart)
+    const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
+    if (accountId && weekly.length > 0) merged[accountId] = weekly;
+
+    // 从全部账号收集唯一日期作为 x 轴
+    const dateSet = new Set<string>();
+    for (const recs of Object.values(merged)) {
+      for (const r of (recs as WeeklyRow[])) {
+        if (r.date) dateSet.add(r.date);
+      }
+    }
+    const dates = [...dateSet].sort().map((d) => d.slice(5));
+
     // Build series: level progression, skip max-level (100), sort high→low
     const valid = accounts
       .filter((a) => {
-        const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
+        const data = (merged[a.id] || []).map((r: any) => r.level ?? 0);
         return !data.every((v: number) => v === 0) && !data.every((v: number) => v >= 100);
       })
       .sort((a, b) => {
-        const la = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
-        const lb = (allWeekly[b.id] || []).slice(-1)[0]?.level ?? b.level;
+        const la = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
+        const lb = (merged[b.id] || []).slice(-1)[0]?.level ?? b.level;
         return lb - la;
       });
     const trendSeries = valid.map((a) => {
-        const data = (allWeekly[a.id] || []).map((r: any) => r.level ?? 0);
-        const lv = (allWeekly[a.id] || []).slice(-1)[0]?.level ?? a.level;
+        const data = (merged[a.id] || []).map((r: any) => r.level ?? 0);
+        const lv = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
         const c = accountColorMap.get(a.id) || palette[0];
         return {
           name: `${a.name || a.id} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
