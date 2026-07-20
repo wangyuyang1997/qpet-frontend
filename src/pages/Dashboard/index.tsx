@@ -154,55 +154,53 @@ export default function Dashboard() {
     };
   }, [accounts, allWeekly, weekly, accountId, accountColorMap]);
 
-  // Multi-line chart for all accounts — 数据不受当前角色切换影响
+  // Multi-line chart: 近7天所有非满级角色等级变化，按日期分组，缺失填0
   const multiLineOption = useMemo(() => {
-    // Merge current account's weekly into allWeekly (same as pie chart)
     const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
     if (accountId && weekly.length > 0) merged[accountId] = weekly;
 
-    // 从全部账号收集唯一日期作为 x 轴
+    // 收集全部日期，近7天固定
     const dateSet = new Set<string>();
     for (const recs of Object.values(merged)) {
       for (const r of (recs as WeeklyRow[])) {
         if (r.date) dateSet.add(r.date);
       }
     }
-    const dates = [...dateSet].sort().map((d) => d.slice(5));
+    const fullDates = [...dateSet].sort();
+    const dates = fullDates.map((d) => d.slice(5));
 
-    // Build level map per account for date alignment
-    const levelByDate: Record<string, Record<string, number>> = {};
+    // 每个日期每个角色的等级: levelMap[date][accountId] = level
+    const levelMap: Record<string, Record<string, number>> = {};
+    for (const d of fullDates) levelMap[d] = {};
     for (const [aid, recs] of Object.entries(merged)) {
-      levelByDate[aid] = {};
       for (const r of (recs as WeeklyRow[])) {
-        if (r.date) levelByDate[aid][r.date] = r.level ?? 0;
+        if (r.date) levelMap[r.date][aid] = r.level ?? 0;
       }
     }
 
-    // Build series: 只展示最新日期有数据的非满级角色
-    const fullDates = [...dateSet].sort();
-    const latestDate = fullDates[fullDates.length - 1];
-    const valid = accounts
-      .filter((a) => {
-        const latestLevel = levelByDate[a.id]?.[latestDate];
-        if (latestLevel == null || latestLevel >= 100) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const la = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
-        const lb = (merged[b.id] || []).slice(-1)[0]?.level ?? b.level;
-        return lb - la;
+    // 过滤：非满级角色（任何一天 < 100），按最近日期等级降序
+    const candidateIds = accounts
+      .map((a) => a.id)
+      .filter((id) => {
+        const levels = fullDates.map((d) => levelMap[d]?.[id]).filter((v): v is number => v != null);
+        return levels.length > 0 && !levels.every((v) => v >= 100);
       });
-    const trendSeries = valid.map((a) => {
-        // Align level data to shared date axis — missing dates = null
-        const data = fullDates.map((d) => levelByDate[a.id]?.[d] ?? null);
-        const lv = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
-        const c = accountColorMap.get(a.id) || palette[0];
-        return {
-          name: `${a.name || a.id} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
-          connectNulls: false,
-          itemStyle: { color: c }, lineStyle: { color: c, width: 2 },
-        };
-      }) as any[];
+    const sortedIds = candidateIds.sort((a, b) => {
+      const la = fullDates.reduceRight((acc, d) => acc ?? levelMap[d]?.[a] ?? null, null as number | null) ?? 0;
+      const lb = fullDates.reduceRight((acc, d) => acc ?? levelMap[d]?.[b] ?? null, null as number | null) ?? 0;
+      return lb - la;
+    });
+
+    const trendSeries = sortedIds.map((id) => {
+      const acct = accounts.find((a) => a.id === id);
+      const data = fullDates.map((d) => levelMap[d]?.[id] ?? 0);
+      const lv = fullDates.reduceRight((acc, d) => acc ?? levelMap[d]?.[id] ?? null, null as number | null) ?? 0;
+      const c = accountColorMap.get(id) || palette[0];
+      return {
+        name: `${acct?.name || id} Lv.${lv}`, type: 'line', smooth: true, symbol: 'none', data,
+        itemStyle: { color: c }, lineStyle: { color: c, width: 2 },
+      };
+    }) as any[];
     return {
       grid: { top: 8, right: 16, bottom: 4, left: 44 },
       tooltip: { trigger: 'axis' },
