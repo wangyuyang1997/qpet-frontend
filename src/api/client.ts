@@ -54,6 +54,7 @@ export const accountApi = {
   inventoryProgress: (id: string) => api.get(`/accounts/${id}/inventory-progress`),
   ssoData: (id: string) => api.get(`/accounts/${id}/sso-data`),
   refreshMarriage: (id: string) => api.post(`/accounts/${id}/refresh-marriage`),
+  chestRecords: (id: string, limit = 30) => api.get(`/accounts/${id}/chest-records`, { params: { limit } }),
   updateCredentials: (id: string, data: { username: string; password: string }) =>
     api.put(`/accounts/${id}/credentials`, data),
   getCredentials: (id: string) => api.get(`/accounts/${id}/credentials`),
