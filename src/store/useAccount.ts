@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { accountApi, configApi } from '../api/client';
-import { cacheFetch, cacheSet } from './useCache';
+import { accountApi } from '../api/client';
+import { preloadApi } from '../api/client';
+import { cacheSet } from './useCache';
 
 export interface AccountSummary {
   id: string;
@@ -62,11 +63,17 @@ export const useAccount = create<AccountState>((set, get) => ({
     set({ selectedAccountId: id });
   },
 
-  preloadAll: () => {
-    const { accounts } = get();
-    for (const a of accounts) {
-      const key = `config:${a.id}`;
-      cacheFetch(key, () => configApi.get(a.id).then((r: any) => r.data.data || r.data || []));
-    }
+  preloadAll: async () => {
+    try {
+      const res = await preloadApi();
+      const data = res.data?.data || {};
+      for (const [aid, info] of Object.entries(data)) {
+        const accInfo = info as any;
+        // 配置
+        if (accInfo.config) cacheSet(`config:${aid}`, accInfo.config);
+        // 角色数据
+        if (accInfo.character) cacheSet(`character:${aid}`, accInfo.character);
+      }
+    } catch { /* preload is best-effort */ }
   },
 }));

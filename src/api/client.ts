@@ -72,6 +72,9 @@ export const dashboardApi = {
   weeklyAll: () => api.get('/dashboard/weekly-all'),
 };
 
+// Preload
+export const preloadApi = () => api.get('/preload');
+
 // Config
 export const configApi = {
   definitions: () => api.get('/config/definitions'),
