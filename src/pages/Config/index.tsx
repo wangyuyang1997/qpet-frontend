@@ -81,9 +81,7 @@ const SECTIONS: Section[] = [
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
-    padding: '28px 32px 48px',
-    maxWidth: 780,
-    margin: '0 auto',
+    padding: '28px 0 48px',
     animation: 'fadeInUp 0.4s ease both',
   },
   header: {

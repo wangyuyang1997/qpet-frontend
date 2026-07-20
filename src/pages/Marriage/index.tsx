@@ -50,7 +50,7 @@ export default function Marriage() {
   const curAccount = accounts.find((a: any) => a.id === accountId);
 
   return (
-    <div style={{ padding: '24px 32px 48px', maxWidth: 680, margin: '0 auto' }}>
+    <div style={{ padding: '24px 0 48px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
