@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { configApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
+import { cacheGet, cacheSet } from '../../store/useCache';
 import { useParams, useNavigate } from 'react-router-dom';
 
 // ── 美化文案映射 ──
@@ -205,28 +206,24 @@ export default function Config() {
 
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const cacheRef = useRef<Map<string, any[]>>(new Map());
-  const fetchingRef = useRef<Set<string>>(new Set());
+  const firstLoadRef = useRef(true);
 
   useEffect(() => {
     if (!selected) return;
-    // 缓存命中：立即展示，后台静默刷新
-    const cached = cacheRef.current.get(selected);
+    const cacheKey = `config:${selected}`;
+    const cached = cacheGet<any[]>(cacheKey);
     if (cached) {
       setConfigs(cached);
-    } else {
-      setLoading(true);
+      if (!firstLoadRef.current) return; // 非首次不闪loading
     }
-    // 防重复请求
-    if (fetchingRef.current.has(selected)) return;
-    fetchingRef.current.add(selected);
+    if (firstLoadRef.current) setLoading(true);
     configApi.get(selected).then((r) => {
       const data = r.data.data || r.data || [];
-      cacheRef.current.set(selected, data);
+      cacheSet(cacheKey, data);
       setConfigs(data);
     }).finally(() => {
       setLoading(false);
-      fetchingRef.current.delete(selected);
+      firstLoadRef.current = false;
     });
   }, [selected]);
 
@@ -236,7 +233,7 @@ export default function Config() {
     await configApi.update({ account_id: selected, key, value: nv });
     setConfigs((prev) => {
       const next = prev.map((c) => (c.key === key ? { ...c, value: nv } : c));
-      cacheRef.current.set(selected, next);
+      cacheSet(`config:${selected}`, next);
       return next;
     });
   };
@@ -246,7 +243,7 @@ export default function Config() {
     await configApi.update({ account_id: selected, key, value });
     setConfigs((prev) => {
       const next = prev.map((c) => (c.key === key ? { ...c, value } : c));
-      cacheRef.current.set(selected, next);
+      cacheSet(`config:${selected}`, next);
       return next;
     });
   };

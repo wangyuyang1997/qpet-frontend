@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { accountApi } from '../api/client';
+import { accountApi, configApi } from '../api/client';
+import { cacheFetch, cacheSet } from './useCache';
 
 export interface AccountSummary {
   id: string;
@@ -16,9 +17,10 @@ interface AccountState {
   loading: boolean;
   fetchAccounts: () => Promise<AccountSummary[]>;
   setSelectedAccountId: (id: string) => void;
+  preloadAll: () => void;
 }
 
-export const useAccount = create<AccountState>((set) => ({
+export const useAccount = create<AccountState>((set, get) => ({
   accounts: [],
   selectedAccountId: localStorage.getItem('qpet_active_account') || null,
   loading: false,
@@ -37,7 +39,6 @@ export const useAccount = create<AccountState>((set) => ({
         is_premium: a.is_premium || false,
       }));
 
-      // Frontend-side filter: non-admin users only see bound accounts
       try {
         const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
         if (userInfo.role !== 'admin' && userInfo.accountIds?.length > 0) {
@@ -46,6 +47,9 @@ export const useAccount = create<AccountState>((set) => ({
       } catch { /* ignore */ }
 
       set({ accounts, loading: false });
+
+      // 后台预加载所有账号的配置
+      get().preloadAll();
       return accounts;
     } catch {
       set({ loading: false });
@@ -56,5 +60,13 @@ export const useAccount = create<AccountState>((set) => ({
   setSelectedAccountId: (id: string) => {
     localStorage.setItem('qpet_active_account', id);
     set({ selectedAccountId: id });
+  },
+
+  preloadAll: () => {
+    const { accounts } = get();
+    for (const a of accounts) {
+      const key = `config:${a.id}`;
+      cacheFetch(key, () => configApi.get(a.id).then((r: any) => r.data.data || r.data || []));
+    }
   },
 }));
