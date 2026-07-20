@@ -11,8 +11,8 @@ const LEVEL_STYLE: Record<string, { bg: string; color: string }> = {
   DEBUG: { bg: 'rgba(0,0,0,0.04)', color: '#aeaeb2' },
 };
 
-function LogPanel({ title, icon, category, accountId, date }: {
-  title: string; icon: string; category: string; accountId: string | null; date: string;
+function LogPanel({ title, icon, category, accountId, date, tick }: {
+  title: string; icon: string; category: string; accountId: string | null; date: string; tick: number;
 }) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ function LogPanel({ title, icon, category, accountId, date }: {
       setLogs(r.data.logs || r.data.data || r.data || []);
       setLoading(false);
     });
-  }, [accountId, date, category]);
+  }, [accountId, date, category, tick]);
 
   const count = logs.length;
 
@@ -70,7 +70,7 @@ function LogPanel({ title, icon, category, accountId, date }: {
   );
 }
 
-function ChestLogPanel({ accountId }: { accountId: string | null }) {
+function ChestLogPanel({ accountId, tick }: { accountId: string | null; tick: number }) {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -81,7 +81,7 @@ function ChestLogPanel({ accountId }: { accountId: string | null }) {
       setRecords(r.data?.data || []);
       setLoading(false);
     });
-  }, [accountId]);
+  }, [accountId, tick]);
 
   const count = records.length;
 
@@ -137,10 +137,17 @@ function ChestLogPanel({ accountId }: { accountId: string | null }) {
 export default function Logs() {
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [stats, setStats] = useState<any>({ today: 0, history: 0 });
+  const [tick, setTick] = useState(0);
   const selectedAccountId = useAccount((s) => s.selectedAccountId);
 
   useEffect(() => {
     dashboardApi.stats().then((r) => setStats(r.data?.data || r.data));
+  }, [tick]);
+
+  // 每15秒轮询刷新
+  useEffect(() => {
+    const timer = setInterval(() => setTick((n) => n + 1), 15000);
+    return () => clearInterval(timer);
   }, []);
 
   return (
@@ -169,14 +176,14 @@ export default function Logs() {
 
       {/* 上方：乐斗+农场 左右并排 */}
       <div style={{ display: 'flex', gap: 24, flex: 1, minHeight: 260, marginBottom: 20 }}>
-        <LogPanel title="乐斗" icon="⚔" category="乐斗" accountId={selectedAccountId} date={date} />
-        <LogPanel title="农场" icon="🌾" category="农场" accountId={selectedAccountId} date={date} />
+        <LogPanel title="乐斗" icon="⚔" category="乐斗" accountId={selectedAccountId} date={date} tick={tick} />
+        <LogPanel title="农场" icon="🌾" category="农场" accountId={selectedAccountId} date={date} tick={tick} />
       </div>
 
       {/* 下方：系统日志(左) + 宝箱记录(右) */}
       <div style={{ display: 'flex', gap: 24, minHeight: 180, maxHeight: 280, minWidth: 0 }}>
-        <LogPanel title="系统" icon="⚙" category="系统" accountId={selectedAccountId} date={date} />
-        <ChestLogPanel accountId={selectedAccountId} />
+        <LogPanel title="系统" icon="⚙" category="系统" accountId={selectedAccountId} date={date} tick={tick} />
+        <ChestLogPanel accountId={selectedAccountId} tick={tick} />
       </div>
     </div>
   );
