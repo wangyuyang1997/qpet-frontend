@@ -178,13 +178,14 @@ export default function Dashboard() {
       }
     }
 
-    // Build series: level progression, skip max-level (100), sort high→low
+    // Build series: 只展示最新日期有数据的非满级角色
     const fullDates = [...dateSet].sort();
+    const latestDate = fullDates[fullDates.length - 1];
     const valid = accounts
       .filter((a) => {
-        const levels = fullDates.map((d) => levelByDate[a.id]?.[d]).filter((v): v is number => v != null);
-        if (levels.length === 0) return false;
-        return !levels.every((v) => v === 0) && !levels.every((v) => v >= 100);
+        const latestLevel = levelByDate[a.id]?.[latestDate];
+        if (latestLevel == null || latestLevel >= 100) return false;
+        return true;
       })
       .sort((a, b) => {
         const la = (merged[a.id] || []).slice(-1)[0]?.level ?? a.level;
