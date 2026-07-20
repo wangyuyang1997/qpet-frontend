@@ -159,17 +159,17 @@ export default function Dashboard() {
     const merged: Record<string, WeeklyRow[]> = { ...allWeekly };
     if (accountId && weekly.length > 0) merged[accountId] = weekly;
 
-    // 收集全部日期，近7天固定
-    const dateSet = new Set<string>();
-    for (const recs of Object.values(merged)) {
-      for (const r of (recs as WeeklyRow[])) {
-        if (r.date) dateSet.add(r.date);
-      }
+    // 固定最近7天（从6天前到今天），不管有没有数据都展示
+    const fullDates: string[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      fullDates.push(d.toISOString().slice(0, 10));
     }
-    const fullDates = [...dateSet].sort();
     const dates = fullDates.map((d) => d.slice(5));
 
-    // 每个日期每个角色的等级: levelMap[date][accountId] = level
+    // levelMap[date][accountId] = level，先按固定7天初始化
     const levelMap: Record<string, Record<string, number>> = {};
     for (const d of fullDates) levelMap[d] = {};
     for (const [aid, recs] of Object.entries(merged)) {
