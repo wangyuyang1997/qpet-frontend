@@ -196,7 +196,7 @@ export default function Dashboard() {
       yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(0,0,0,0.04)' } }, axisLabel: { fontSize: 11, color: '#aeaeb2' } },
       series: trendSeries,
     };
-  }, [accounts, allWeekly, weekly, dates, accountId]);
+  }, [accounts, allWeekly, weekly, accountId]);
 
   const currAccount = accounts.find((a) => a.id === accountId);
 
