@@ -1,46 +1,39 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Card, Row, Col, Tag, Spin, Typography, Table, Input, Select, Switch, Empty, Tooltip, Button, message } from 'antd';
-import { SearchOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Tag, Spin, Typography, Table, Input, Select, Switch, Empty, Tooltip, Button, message, Collapse, InputNumber } from 'antd';
+import { SearchOutlined, LinkOutlined, CopyOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { accountApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
 import { cacheGet, cacheSet } from '../../store/useCache';
 
-function b64urlEncode(str: string) {
-  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+function b64urlEncode(str: string) { return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 
 const SLOT_LABELS: Record<string, string> = {
   head: '头饰', armor: '护甲', bracer: '护腕', wrist: '护腕', belt: '腰带',
   boots: '鞋子', shoes: '鞋子', necklace: '项链', title: '称号',
 };
-const SLOT_KEYS = ['head', 'armor', 'bracer', 'belt', 'boots', 'necklace', 'title'];
-const ITEM_TYPE_LABELS: Record<string, string> = {
-  equipment: '装备', consumable: '消耗品', bead: '魂珠', chest: '宝箱',
-  weapon_book: '武器书', material: '材料',
-};
+const SLOT_ORDER = ['head', 'armor', 'bracer', 'belt', 'boots', 'necklace'];
+const SLOT_ICONS: Record<string, string> = { head: '👑', armor: '🛡️', bracer: '⚔️', belt: '🎗️', boots: '👢', necklace: '💍' };
+
 const QUALITY_COLOR: Record<string, string> = { '传说': 'orange', '神器': 'red', '稀有': 'purple', '良品': 'blue', '普通': 'default' };
 
 function slotLabel(slot: string) { return SLOT_LABELS[slot] || slot; }
-function typeLabel(type: string) { return ITEM_TYPE_LABELS[type] || type || '物品'; }
-function affixText(affixes: any[]) {
-  if (!affixes?.length) return '';
-  return affixes.map((a: any) => `+${a.value}${a.label || a.type}`).join(' ');
-}
+
 function statText(stats: any) {
   if (!stats) return '';
   const map: Record<string, string> = {
     '生命': 'HP', '攻击': '攻', '速度': '速', '暴击%': '暴击', '闪避%': '闪避', '格挡%': '格挡',
-    '命中%': '命中', '连击%': '连击', '吸血%': '吸血', '减伤%': '减伤',
-    '武器伤害%': '武伤', '技伤%': '技伤', '治疗%': '治疗',
-    '力量': '力', '敏捷': '敏', '智力': '智', '体质': '体',
-    // fallback English
-    'max_hp': 'HP', 'min_atk': '攻', 'max_atk': '攻', 'spd': '速',
-    'crit_pct': '暴击', 'dodge_pct': '闪', 'block_pct': '格挡',
-    'hit_pct': '命中', 'combo_pct': '连击', 'leech_pct': '吸血',
-    'reduction_pct': '减伤', 'weapon_dmg_pct': '武伤', 'skill_dmg_pct': '技伤',
+    '命中%': '命中', '连击%': '连击', '吸血%': '吸血', '减伤%': '减伤', '武器伤害%': '武伤',
+    '技伤%': '技伤', '治疗%': '治疗', '力量': '力', '敏捷': '敏', '智力': '智', '体质': '体',
+    'max_hp': 'HP', 'spd': '速', 'crit_pct': '暴击', 'dodge_pct': '闪', 'block_pct': '格挡',
+    'leech_pct': '吸血', 'reduction_pct': '减伤', 'weapon_dmg_pct': '武伤', 'skill_dmg_pct': '技伤',
     'heal_pct': '治疗', 'agi': '敏', 'str': '力', 'int': '智', 'vit': '体',
   };
   return Object.entries(stats).map(([k, v]) => `${map[k] || k}+${v}`).join(' ');
+}
+
+function affixText(affixes: any[]) {
+  if (!affixes?.length) return '';
+  return affixes.map((a: any) => `+${a.value}${a.label || a.type}`).join(' ');
 }
 
 export default function Auction() {
@@ -48,21 +41,34 @@ export default function Auction() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('全部');
+  const [slotFilter, setSlotFilter] = useState('全部');
   const [sortKey, setSortKey] = useState('improve');
   const [equipOnly, setEquipOnly] = useState(true);
+  const [armorFilter, setArmorFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
+  const [minLevel, setMinLevel] = useState<number | null>(null);
+  const [maxLevel, setMaxLevel] = useState<number | null>(null);
+  const [recExpanded, setRecExpanded] = useState(true);
+
+  const buildUrl = (equip: boolean) => {
+    if (!accountId) return '';
+    const p = new URLSearchParams({ accountId, type: equip ? 'equipment' : 'all' });
+    if (minLevel) p.set('minLevel', String(minLevel));
+    if (maxLevel) p.set('maxLevel', String(maxLevel));
+    if (armorFilter) p.set('armorType', armorFilter);
+    if (classFilter) p.set('classRequired', classFilter);
+    return `/api/auction/snapshots?${p.toString()}`;
+  };
 
   const fetchData = (equip: boolean) => {
     if (!accountId) return;
-    const ck = `auction-v2-${equip ? 'eq' : 'all'}:${accountId}`;
+    const ck = `auction-v3:${accountId}`;
     const cached = cacheGet<any>(ck);
     if (cached) { setData(cached); setLoading(false); }
+
     const token = localStorage.getItem('token') || '';
-    const apiType = equip ? 'equipment' : 'all';
     Promise.all([
-      fetch(`/api/auction/snapshots?accountId=${accountId}&type=${apiType}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(r => r.json()).catch(() => ({ data: null })),
+      fetch(buildUrl(equip), { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ data: null })),
       accountApi.character(accountId),
     ])
       .then(([aRes, cRes]: any[]) => {
@@ -75,15 +81,14 @@ export default function Auction() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(equipOnly); }, [accountId, equipOnly]);
+  useEffect(() => { fetchData(equipOnly); }, [accountId, equipOnly, minLevel, maxLevel, armorFilter, classFilter]);
 
   const handleCopyScript = useCallback(async () => {
     try {
       const token = localStorage.getItem('token') || '';
       const resp = await fetch('/api/tampermonkey/script', { headers: { Authorization: `Bearer ${token}` } });
-      const text = await resp.text();
-      await navigator.clipboard.writeText(text);
-      message.success('油猴脚本已复制到剪贴板，粘贴到 Tampermonkey 新脚本即可');
+      await navigator.clipboard.writeText(await resp.text());
+      message.success('油猴脚本已复制到剪贴板');
     } catch { message.error('复制失败'); }
   }, []);
 
@@ -91,26 +96,24 @@ export default function Auction() {
     try {
       const ssoRes = await accountApi.ssoData(accountId);
       const d = (ssoRes as any)?.data;
-      if (!d?.success) { message.error('SSO失败: ' + d?.message); return; }
+      if (!d?.success) { message.error('SSO失败'); return; }
       const payload = b64urlEncode(JSON.stringify({ t: d.data.token, k: d.data.jwk }));
-      const name = encodeURIComponent(item.name || '');
-      const quality = encodeURIComponent(item.quality || '');
-      const level = item.item_level || '';
-      window.open(`https://www.duanwuqiufenmao.top/#sso=${payload}&q=${name}&ql=${quality}&lv=${level}`, '_blank');
+      window.open(`https://www.duanwuqiufenmao.top/#sso=${payload}&q=${encodeURIComponent(item.name || '')}&ql=${encodeURIComponent(item.quality || '')}&lv=${item.item_level || ''}`, '_blank');
     } catch { message.error('获取SSO信息失败'); }
   }, [accountId]);
 
   if (loading && !data) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
   if (!data) return <Typography.Text type="secondary">暂无数据</Typography.Text>;
 
-  const { items = [], recommended = [], metadata = {}, character = {}, char_class = '' } = data;
+  const { items = [], recommended = {}, metadata = {}, filters = {}, character = {}, char_class = '' } = data;
   const equipped = character.current_equipment || {};
   const className = character.className || char_class || '';
 
+  // filter items
   let filtered = items.filter((item: any) => {
     if (search && !item.name?.includes(search) && !item.seller_name?.includes(search)) return false;
     const slot = item.equip_slot || item.slot || '';
-    if (typeFilter !== '全部' && slot !== typeFilter) return false;
+    if (slotFilter !== '全部' && slot !== slotFilter) return false;
     return true;
   });
 
@@ -120,15 +123,12 @@ export default function Auction() {
     return (b.improvement ?? 0) - (a.improvement ?? 0);
   });
 
-  const topRec = recommended[0];
-  let insight = '';
-  if (topRec) {
-    insight = `${slotLabel(topRec.equip_slot || topRec.slot)} ${topRec.name} 评分提升 ${topRec.improvement || 0}%`;
-    if (topRec.set_match) insight += '，同套装冲突需注意';
-    else if (topRec.armor_match) insight += '，护甲类型匹配';
-  }
+  // recommendation count
+  const totalRecs = Object.values(recommended).reduce((sum: number, arr: any) => sum + (arr?.length || 0), 0);
 
-  const slotOptions = [{ value: '全部', label: '全部' }, ...SLOT_KEYS.map(s => ({ value: s, label: slotLabel(s) }))];
+  const slotOptions = [{ value: '全部', label: '全部' }, ...SLOT_ORDER.map(s => ({ value: s, label: slotLabel(s) }))];
+  const armorOptions = [{ value: '', label: '全部护甲' }, ...(filters.armor_types || []).map((a: string) => ({ value: a, label: a }))];
+  const classOptions = [{ value: '', label: '全部职业' }, ...(filters.class_names || []).map((c: string) => ({ value: c, label: c }))];
 
   const columns = [
     { title: '名称', dataIndex: 'name', key: 'name', width: 170,
@@ -151,28 +151,24 @@ export default function Auction() {
         const txt = [s, a].filter(Boolean).join(' | ');
         return txt ? <Tooltip title={txt}><Typography.Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{txt}</Typography.Text></Tooltip> : <span style={{ color: 'var(--text-tertiary)' }}>-</span>;
       } },
-    { title: '价格', dataIndex: 'price', key: 'price', width: 80,
-      render: (v: number) => v ? v.toLocaleString() : '-' },
+    { title: '价格', dataIndex: 'price', key: 'price', width: 80, render: (v: number) => v ? v.toLocaleString() : '-' },
     { title: '评分', dataIndex: 'score', key: 'score', width: 60, render: (v: number) => v || '-' },
     { title: '卖家', dataIndex: 'seller_name', key: 'seller', width: 90,
       render: (v: string) => <Typography.Text style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{v || '-'}</Typography.Text> },
-    { title: '', dataIndex: '_act', key: 'act', width: 80,
+    { title: '', dataIndex: '_act', key: 'act', width: 70,
       render: (_: any, r: any) => (r.equip_slot || r.slot) ? (
-        <Tooltip title="单点登录游戏并搜索此装备">
-          <Button type="link" size="small" icon={<LinkOutlined />}
-            onClick={() => handleGameSearch(r)} style={{ fontSize: 11, padding: 0 }}>搜索</Button>
-        </Tooltip>
+        <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => handleGameSearch(r)} style={{ fontSize: 11, padding: 0 }}>搜索</Button>
       ) : null },
   ];
 
   return (
     <div>
+      {/* --- header --- */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <Typography.Text style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-display)', letterSpacing: '-0.04em' }}>
           拍卖行
           <Tooltip title="复制油猴脚本，粘贴到 Tampermonkey 新建脚本中使用">
-            <Button type="link" size="small" icon={<CopyOutlined />} onClick={handleCopyScript}
-              style={{ marginLeft: 12, fontSize: 11 }}>安装脚本</Button>
+            <Button type="link" size="small" icon={<CopyOutlined />} onClick={handleCopyScript} style={{ marginLeft: 12, fontSize: 11 }}>安装脚本</Button>
           </Tooltip>
         </Typography.Text>
         <Typography.Text style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
@@ -181,139 +177,123 @@ export default function Auction() {
         </Typography.Text>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
+      {/* --- 推荐区：按槽位可折叠 --- */}
+      {totalRecs > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div
+            onClick={() => setRecExpanded(!recExpanded)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: recExpanded ? 12 : 0, cursor: 'pointer', userSelect: 'none' }}
+          >
+            <CaretDownOutlined style={{ fontSize: 11, color: 'var(--text-tertiary)', transition: 'transform 0.2s', transform: recExpanded ? 'none' : 'rotate(-90deg)' }} />
+            <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' }}>
+              推荐升级
+            </Typography.Text>
+            <Typography.Text style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              {totalRecs} 件 · {Object.values(recommended).filter((a: any) => a?.length).length} 个部位
+            </Typography.Text>
+            {className && <Typography.Text style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>当前角色: {className}</Typography.Text>}
+          </div>
+
+          {recExpanded && (
+            <Row gutter={[12, 12]}>
+              {SLOT_ORDER.map(slot => {
+                const recs = (recommended[slot] || []).filter((r: any) => r.improvement > 0);
+                if (!recs.length) return null;
+                const curEquip = equipped[slot];
+                return (
+                  <Col span={8} key={slot}>
+                    <div style={{
+                      background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
+                      padding: '12px 14px', height: '100%',
+                      boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-subtle)',
+                    }}>
+                      {/* slot header */}
+                      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 13 }}>{SLOT_ICONS[slot] || ''}</span>
+                        <Typography.Text strong style={{ fontSize: 13, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' }}>
+                          {slotLabel(slot)}
+                        </Typography.Text>
+                        {curEquip && (
+                          <Typography.Text style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>
+                            {curEquip.name?.slice(0, 6) || '-'} Lv.{curEquip.item_level || '?'}
+                          </Typography.Text>
+                        )}
+                      </div>
+
+                      {/* rec items */}
+                      {recs.map((item: any, i: number) => (
+                        <div key={i} style={{
+                          padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+                          background: i === 0 ? 'var(--accent-subtle)' : 'transparent',
+                          marginBottom: i < recs.length - 1 ? 4 : 0,
+                          transition: 'background 0.15s',
+                        }}>
+                          <Row align="middle" gutter={4} wrap={false}>
+                            {/* name + enhance */}
+                            <Col flex="auto" style={{ minWidth: 0 }}>
+                              <Typography.Text style={{ fontSize: 12, fontFamily: 'var(--font-display)' }} ellipsis>
+                                {(item.enhance_level || 0) > 0 && <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: 3 }}>+{item.enhance_level}</span>}
+                                {item.name}
+                              </Typography.Text>
+                            </Col>
+                            {/* quality */}
+                            <Col>{item.quality ? <Tag color={QUALITY_COLOR[item.quality] || 'default'} style={{ fontSize: 10, margin: 0, lineHeight: '16px', padding: '0 4px' }}>{item.quality}</Tag> : null}</Col>
+                            {/* level */}
+                            <Col><Typography.Text style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Lv.{item.item_level}</Typography.Text></Col>
+                            {/* improvement */}
+                            <Col><Tag color="success" style={{ fontSize: 10, margin: 0, fontWeight: 600 }}>↑{item.improvement}%</Tag></Col>
+                            {/* price */}
+                            <Col><Typography.Text style={{ fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--accent)', whiteSpace: 'nowrap' }}>{(item.price || 0).toLocaleString()}</Typography.Text></Col>
+                            {/* search */}
+                            <Col>
+                              <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => handleGameSearch(item)} style={{ fontSize: 10, padding: 0, color: 'var(--text-tertiary)' }} />
+                            </Col>
+                          </Row>
+                          {(i === 0 && item.set_info || item.class_required || item.armor_type) && (
+                            <div style={{ marginTop: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                              {item.set_info && <Tag color="gold" style={{ fontSize: 9, margin: 0, lineHeight: '14px', padding: '0 3px' }}>{item.set_info}</Tag>}
+                              {item.class_required && <Tag style={{ fontSize: 9, margin: 0, lineHeight: '14px', padding: '0 3px', color: '#0891b2', background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.15)' }}>{item.class_required}</Tag>}
+                              {item.armor_type && <Tag style={{ fontSize: 9, margin: 0, lineHeight: '14px', padding: '0 3px', color: 'var(--text-secondary)', background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)' }}>{item.armor_type}</Tag>}
+                              {item.armor_match && <Tag color="blue" style={{ fontSize: 9, margin: 0, lineHeight: '14px', padding: '0 3px' }}>匹配</Tag>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Col>
+                );
+              })}
+            </Row>
+          )}
+        </div>
+      )}
+
+      {/* --- 筛选区 --- */}
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <Input prefix={<SearchOutlined />} placeholder="搜索名称/卖家..." value={search}
-          onChange={e => setSearch(e.target.value)} style={{ width: 220 }} allowClear />
-        <Select value={typeFilter} onChange={setTypeFilter} style={{ width: 100 }} options={slotOptions} />
-        <Select value={sortKey} onChange={setSortKey} style={{ width: 110 }} options={[
+          onChange={e => setSearch(e.target.value)} style={{ width: 200 }} allowClear />
+        <Select value={slotFilter} onChange={setSlotFilter} style={{ width: 90 }} options={slotOptions} />
+        <Select value={armorFilter} onChange={setArmorFilter} style={{ width: 100 }} options={armorOptions}
+          placeholder="护甲" allowClear onClear={() => setArmorFilter('')} />
+        <Select value={classFilter} onChange={setClassFilter} style={{ width: 100 }} options={classOptions}
+          placeholder="职业" allowClear onClear={() => setClassFilter('')} />
+        <InputNumber placeholder="Lv≥" min={1} max={100} value={minLevel} onChange={v => setMinLevel(v)}
+          style={{ width: 64 }} size="small" />
+        <InputNumber placeholder="Lv≤" min={1} max={100} value={maxLevel} onChange={v => setMaxLevel(v)}
+          style={{ width: 64 }} size="small" />
+        <Select value={sortKey} onChange={setSortKey} style={{ width: 100 }} options={[
           { value: 'improve', label: '提升 ↓' }, { value: 'score', label: '评分 ↓' }, { value: 'price', label: '价格 ↑' },
         ]} />
-        <div style={{ marginLeft: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Switch size="small" checked={equipOnly} onChange={v => { setEquipOnly(v); setLoading(true); }} />
           <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            仅装备 {metadata.equipment_count ? `(${metadata.equipment_count})` : ''}
+            仅装备 ({metadata.equipment_count || 0})
           </Typography.Text>
         </div>
       </div>
 
-      {recommended.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
-            <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              推荐升级
-            </Typography.Text>
-            {className && <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
-              适合 {className}
-            </Typography.Text>}
-            {insight && <Typography.Text style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginLeft: 'auto' }}>
-              {insight}
-            </Typography.Text>}
-          </div>
-          <Row gutter={12}>
-            {recommended.map((item: any, i: number) => {
-              const slot = slotLabel(item.equip_slot || item.slot);
-              const currentEquip = equipped[item.equip_slot || item.slot];
-              const statSummary = statText(item.base_stats) || '';
-              const affixSummary = affixText(item.affixes) || '';
-              const detail = [statSummary, affixSummary].filter(Boolean).join(' · ');
-              return (
-                <Col span={8} key={i}>
-                  <div style={{
-                    background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
-                    padding: '16px 18px', height: '100%',
-                    boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-subtle)',
-                    transition: 'box-shadow 0.2s ease, transform 0.15s ease',
-                    cursor: 'pointer', position: 'relative', overflow: 'hidden',
-                  }}
-                    onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'none'; }}
-                  >
-                    {/* 排名角标 */}
-                    <div style={{
-                      position: 'absolute', top: -1, right: 12,
-                      fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-display)',
-                      color: i === 0 ? '#fa8c16' : i === 1 ? '#aaa' : '#cd7f32',
-                      letterSpacing: '-0.02em',
-                    }}>TOP {i + 1}</div>
-
-                    {/* 名称 + 等级 + 品质 */}
-                    <div style={{ marginBottom: 10 }}>
-                      <Typography.Text strong style={{
-                        fontSize: 14, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em',
-                        display: 'block', marginBottom: 4,
-                      }}>
-                        {(item.enhance_level || 0) > 0 && <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: 4 }}>+{item.enhance_level}</span>}
-                        {item.name}
-                      </Typography.Text>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                        {item.quality && <Tag color={QUALITY_COLOR[item.quality] || 'default'} style={{ fontSize: 10, margin: 0, lineHeight: '18px' }}>{item.quality}</Tag>}
-                        <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{slot} · Lv.{item.item_level || '?'}</Typography.Text>
-                      </div>
-                    </div>
-
-                    {/* 套装 / 护甲 / 职业 */}
-                    <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-                      {item.set_info && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>{item.set_info}</Tag>}
-                      {item.armor_type && <Tag style={{ fontSize: 10, margin: 0, color: 'var(--text-secondary)', background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)' }}>{item.armor_type}</Tag>}
-                      {item.class_required && <Tag style={{ fontSize: 10, margin: 0, color: '#0891b2', background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.15)' }}>{item.class_required}</Tag>}
-                      {item.armor_match && <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>护甲匹配</Tag>}
-                      {item.set_match && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>同套装</Tag>}
-                    </div>
-
-                    {/* 属性/词缀 */}
-                    {detail && (
-                      <Typography.Paragraph ellipsis={{ rows: 2 }} style={{
-                        fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10,
-                        fontFamily: 'var(--font-mono)', lineHeight: '18px',
-                      }}>
-                        {detail}
-                      </Typography.Paragraph>
-                    )}
-
-                    {/* 分数对比 + 提升 */}
-                    <div style={{
-                      display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10,
-                      background: 'var(--bg-glass)', borderRadius: 'var(--radius-sm)',
-                      padding: '8px 10px',
-                    }}>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>当前</div>
-                        <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                          {(currentEquip ? currentEquip.score : 0) || '-'}
-                        </Typography.Text>
-                      </div>
-                      <div style={{ color: '#52c41a', fontSize: 13, fontWeight: 500 }}>→</div>
-                      <div>
-                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>升级</div>
-                        <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-                          {item.score || '-'}
-                        </Typography.Text>
-                      </div>
-                      <Tag color="success" style={{ fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>
-                        ↑{item.improvement}%
-                      </Tag>
-                    </div>
-
-                    {/* 价格 + 操作 */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Typography.Text strong style={{ fontSize: 16, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>
-                        {(item.price || 0).toLocaleString()}
-                      </Typography.Text>
-                      <Tooltip title="单点登录游戏并搜索此装备">
-                        <Button type="link" size="small" icon={<LinkOutlined />}
-                          onClick={() => handleGameSearch(item)}
-                          style={{ fontSize: 11, padding: '0 4px', color: 'var(--text-tertiary)' }}>搜索</Button>
-                      </Tooltip>
-                    </div>
-                  </div>
-                </Col>
-              );
-            })}
-          </Row>
-        </div>
-      )}
-
-      <Card size="small" title={`全部拍卖${typeFilter !== '全部' ? ` · ${slotLabel(typeFilter)}` : ''}`}>
+      {/* --- 拍卖表 --- */}
+      <Card size="small" title={`全部拍卖${slotFilter !== '全部' ? ` · ${slotLabel(slotFilter)}` : ''}`}>
         {filtered.length === 0 ? <Empty description="暂无数据" /> : (
           <Table rowKey={(r: any) => `${r.id}-${r.item_id}`} dataSource={filtered} columns={columns}
             pagination={{ pageSize: 50, size: 'small', showTotal: (t: number) => `共 ${t} 件` }}
