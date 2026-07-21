@@ -48,7 +48,7 @@ export default function Auction() {
   const [classFilter, setClassFilter] = useState('');
   const [minLevel, setMinLevel] = useState<number | null>(null);
   const [maxLevel, setMaxLevel] = useState<number | null>(null);
-  const [recExpanded, setRecExpanded] = useState(true);
+  const [recExpanded, setRecExpanded] = useState(false);
 
   const buildUrl = (equip: boolean) => {
     if (!accountId) return '';
@@ -184,7 +184,7 @@ export default function Auction() {
             onClick={() => setRecExpanded(!recExpanded)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: recExpanded ? 12 : 0, cursor: 'pointer', userSelect: 'none' }}
           >
-            <CaretDownOutlined style={{ fontSize: 11, color: 'var(--text-tertiary)', transition: 'transform 0.2s', transform: recExpanded ? 'none' : 'rotate(-90deg)' }} />
+            <CaretDownOutlined style={{ fontSize: 11, color: 'var(--text-tertiary)', transition: 'transform 0.3s ease', transform: recExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
             <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em' }}>
               推荐升级
             </Typography.Text>
@@ -194,7 +194,12 @@ export default function Auction() {
             {className && <Typography.Text style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>当前角色: {className}</Typography.Text>}
           </div>
 
-          {recExpanded && (
+          <div style={{
+            maxHeight: recExpanded ? '3000px' : '0px',
+            opacity: recExpanded ? 1 : 0,
+            overflow: 'hidden',
+            transition: 'max-height 0.45s ease, opacity 0.3s ease',
+          }}>
             <Row gutter={[12, 12]}>
               {SLOT_ORDER.map(slot => {
                 const recs = (recommended[slot] || []).filter((r: any) => r.improvement > 0);
@@ -264,7 +269,7 @@ export default function Auction() {
                 );
               })}
             </Row>
-          )}
+          </div>
         </div>
       )}
 
