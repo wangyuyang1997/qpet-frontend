@@ -48,11 +48,13 @@ export default function Auction() {
   const [classFilter, setClassFilter] = useState('');
   const [minLevel, setMinLevel] = useState<number | null>(null);
   const [maxLevel, setMaxLevel] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [recExpanded, setRecExpanded] = useState(() => cacheGet<boolean>('auction:recExpanded') ?? false);
 
-  const buildUrl = (equip: boolean) => {
+  const buildUrl = (equip: boolean, pg: number) => {
     if (!accountId) return '';
-    const p = new URLSearchParams({ accountId, type: equip ? 'equipment' : 'all' });
+    const p = new URLSearchParams({ accountId, type: equip ? 'equipment' : 'all', page: String(pg), pageSize: String(pageSize) });
     if (minLevel) p.set('minLevel', String(minLevel));
     if (maxLevel) p.set('maxLevel', String(maxLevel));
     if (armorFilter) p.set('armorType', armorFilter);
@@ -60,28 +62,26 @@ export default function Auction() {
     return `/api/auction/snapshots?${p.toString()}`;
   };
 
-  const fetchData = (equip: boolean) => {
+  const fetchData = (equip: boolean, pg = 1) => {
     if (!accountId) return;
-    const ck = `auction-v3:${accountId}`;
-    const cached = cacheGet<any>(ck);
-    if (cached) { setData(cached); setLoading(false); }
-
     const token = localStorage.getItem('token') || '';
     Promise.all([
-      fetch(buildUrl(equip), { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ data: null })),
-      accountApi.character(accountId),
+      fetch(buildUrl(equip, pg), { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => ({ data: null })),
+      pg === 1 ? accountApi.character(accountId) : Promise.resolve(null),
     ])
       .then(([aRes, cRes]: any[]) => {
         const d = aRes?.data || {};
-        const charData = cRes?.data?.data || cRes?.data || {};
+        const prev = pg === 1 ? null : cacheGet<any>(`auction-v3:${accountId}`);
+        const charData = cRes?.data?.data || cRes?.data || prev?.character || {};
         const merged = { ...d, character: { ...charData, current_equipment: d?.current_equipment || {} } };
-        cacheSet(ck, merged);
+        if (pg === 1) cacheSet(`auction-v3:${accountId}`, merged);
         setData(merged);
       })
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(equipOnly); }, [accountId, equipOnly, minLevel, maxLevel, armorFilter, classFilter]);
+  useEffect(() => { setPage(1); fetchData(equipOnly, 1); }, [accountId, equipOnly, minLevel, maxLevel, armorFilter, classFilter]);
+  useEffect(() => { fetchData(equipOnly, page); }, [page, pageSize]);
 
   const handleCopyScript = useCallback(async () => {
     try {
@@ -106,10 +106,10 @@ export default function Auction() {
   if (!data) return <Typography.Text type="secondary">暂无数据</Typography.Text>;
 
   const { items = [], recommended = {}, metadata = {}, filters = {}, character = {}, char_class = '' } = data;
+  const serverPagination = (data as any).pagination || { page: 1, pageSize: 50, total: 0 };
   const equipped = character.current_equipment || {};
   const className = character.className || char_class || '';
 
-  // filter items
   let filtered = items.filter((item: any) => {
     if (search && !item.name?.includes(search) && !item.seller_name?.includes(search)) return false;
     const slot = item.equip_slot || item.slot || '';
@@ -301,7 +301,11 @@ export default function Auction() {
       <Card size="small" title={`全部拍卖${slotFilter !== '全部' ? ` · ${slotLabel(slotFilter)}` : ''}`}>
         {filtered.length === 0 ? <Empty description="暂无数据" /> : (
           <Table rowKey={(r: any) => `${r.id}-${r.item_id}`} dataSource={filtered} columns={columns}
-            pagination={{ pageSize: 50, size: 'small', showTotal: (t: number) => `共 ${t} 件` }}
+            pagination={{
+              current: serverPagination.page, pageSize: serverPagination.pageSize, total: serverPagination.total,
+              showTotal: (t: number) => `共 ${t} 件`, size: 'small',
+              onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+            }}
             size="small" scroll={{ x: 900 }} />
         )}
       </Card>
