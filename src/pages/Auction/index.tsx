@@ -48,7 +48,7 @@ export default function Auction() {
   const [classFilter, setClassFilter] = useState('');
   const [minLevel, setMinLevel] = useState<number | null>(null);
   const [maxLevel, setMaxLevel] = useState<number | null>(null);
-  const [recExpanded, setRecExpanded] = useState(false);
+  const [recExpanded, setRecExpanded] = useState(() => cacheGet<boolean>('auction:recExpanded') ?? false);
 
   const buildUrl = (equip: boolean) => {
     if (!accountId) return '';
@@ -181,7 +181,7 @@ export default function Auction() {
       {totalRecs > 0 && (
         <div style={{ marginBottom: 20 }}>
           <div
-            onClick={() => setRecExpanded(!recExpanded)}
+            onClick={() => { const v = !recExpanded; setRecExpanded(v); cacheSet('auction:recExpanded', v); }}
             style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: recExpanded ? 12 : 0, cursor: 'pointer', userSelect: 'none' }}
           >
             <CaretDownOutlined style={{ fontSize: 11, color: 'var(--text-tertiary)', transition: 'transform 0.3s ease', transform: recExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
