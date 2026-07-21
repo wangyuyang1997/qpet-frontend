@@ -73,6 +73,11 @@ export const useAccount = create<AccountState>((set, get) => ({
         if (accInfo.config) cacheSet(`config:${aid}`, accInfo.config);
         // 角色数据
         if (accInfo.character) cacheSet(`character:${aid}`, accInfo.character);
+        // 婚姻/农场/帮派（引擎预热的 Redis 缓存）
+        if (accInfo.marriage) cacheSet(`marriage:${aid}`, accInfo.marriage);
+        if (accInfo.farm) cacheSet(`farm:${aid}`, accInfo.farm);
+        if (accInfo.gang) cacheSet(`gang:${aid}`, accInfo.gang);
+        if (accInfo['gang-boss']) cacheSet(`gang-boss:${aid}`, accInfo['gang-boss']);
       }
     } catch { /* preload is best-effort */ }
   },

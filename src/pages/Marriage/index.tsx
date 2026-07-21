@@ -4,6 +4,7 @@ import { Card, Row, Col, Spin, Typography, Statistic, Tag, Progress, Select, But
 import { HeartOutlined, HeartFilled, SendOutlined, TrophyOutlined, UserOutlined, ThunderboltOutlined, SafetyOutlined } from '@ant-design/icons';
 import { accountApi, configApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
+import { cacheGet, cacheSet } from '../../store/useCache';
 
 const MARRIAGE_SKILL_DESC: Record<string, string> = {
   '情比金坚': '受攻击时 5% 概率减伤 20%',
@@ -14,15 +15,25 @@ const MARRIAGE_SKILL_DESC: Record<string, string> = {
 export default function Marriage() {
   const { accountId } = useParams<{ accountId: string }>();
   const accounts = useAccount((s) => s.accounts);
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(() => (accountId ? cacheGet(`marriage:${accountId}`) : null));
+  const [loading, setLoading] = useState(!data);
   const [selecting, setSelecting] = useState(false);
 
   const fetchData = () => {
     if (!accountId) return;
-    setLoading(true);
+    const cached = cacheGet<any>(`marriage:${accountId}`);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     accountApi.refreshMarriage(accountId)
-      .then((res: any) => setData(res.data?.data || res.data || {}))
+      .then((res: any) => {
+        const d = res.data?.data || res.data || {};
+        cacheSet(`marriage:${accountId}`, d);
+        setData(d);
+      })
       .catch(() => accountApi.character(accountId).then((res: any) => setData(res.data?.data || res.data || {})))
       .finally(() => setLoading(false));
   };

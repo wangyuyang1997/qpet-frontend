@@ -2,30 +2,37 @@ import { useEffect, useState } from 'react';
 import { Card, Row, Col, Tag, Spin, Typography, Progress, Statistic, Empty } from 'antd';
 import { useAccount } from '../../store/useAccount';
 import { accountApi } from '../../api/client';
+import { cacheGet, cacheSet } from '../../store/useCache';
 
 export default function Gang() {
   const { selectedAccountId } = useAccount() as any;
   const accountId = selectedAccountId;
-  const [gang, setGang] = useState<any>(null);
-  const [char, setChar] = useState<any>({});
-  const [boss, setBoss] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [gang, setGang] = useState<any>(() => (accountId ? cacheGet(`gang-status:${accountId}`) : null));
+  const [char, setChar] = useState<any>(() => (accountId ? cacheGet(`character:${accountId}`) || {} : {}));
+  const [boss, setBoss] = useState<any>(() => (accountId ? cacheGet(`gang-boss:${accountId}`) : null));
+  const [loading, setLoading] = useState(!gang);
 
   useEffect(() => {
     if (!accountId) return;
+    // 先显缓存，后台并行 revalidate
+    const cachedGang = cacheGet<any>(`gang-status:${accountId}`);
+    const cachedChar = cacheGet<any>(`character:${accountId}`);
+    const cachedBoss = cacheGet<any>(`gang-boss:${accountId}`);
+    if (cachedGang) { setGang(cachedGang); setLoading(false); }
+    if (cachedChar) setChar(cachedChar);
+    if (cachedBoss) setBoss(cachedBoss);
+
     // 优先DB持久化数据
     accountApi.gangStatus(accountId)
-      .then((res: any) => { const d = res.data?.data; if (d) setGang(d); })
+      .then((res: any) => { const d = res.data?.data; if (d) { cacheSet(`gang-status:${accountId}`, d); setGang(d); } })
+      .catch(() => {});
+    accountApi.character(accountId)
+      .then((cRes: any) => { const d = cRes.data?.data || cRes.data || {}; cacheSet(`character:${accountId}`, d); setChar(d); })
+      .catch(() => {});
+    accountApi.gangBoss(accountId)
+      .then((bRes: any) => { const d = bRes.data?.data || bRes.data || null; if (d) { cacheSet(`gang-boss:${accountId}`, d); setBoss(d); } })
       .catch(() => {})
-      .finally(() => {
-        accountApi.character(accountId)
-          .then((cRes: any) => setChar(cRes.data?.data || cRes.data || {}))
-          .catch(() => {});
-        accountApi.gangBoss(accountId)
-          .then((bRes: any) => setBoss(bRes.data?.data || bRes.data || null))
-          .catch(() => {})
-          .finally(() => setLoading(false));
-      });
+      .finally(() => setLoading(false));
   }, [accountId]);
 
   if (loading) return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;

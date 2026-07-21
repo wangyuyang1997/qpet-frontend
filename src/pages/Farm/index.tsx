@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Card, Row, Col, Tag, Typography, Statistic, Progress, Collapse } from 'antd';
 import { BankOutlined } from '@ant-design/icons';
 import { accountApi } from '../../api/client';
+import { cacheGet, cacheSet } from '../../store/useCache';
 
 const STATE_MAP: Record<string, { label: string; color: string }> = {
   growing: { label: '生长中', color: '#1677ff' },
@@ -17,13 +18,19 @@ const ALBUM_COLOR: Record<string, string> = { '稀有': '#f59e0b', '优': '#3b82
 
 export default function Farm() {
   const { accountId } = useParams<{ accountId: string }>();
-  const [farm, setFarm] = useState<any>({});
+  const [farm, setFarm] = useState<any>(() => (accountId ? cacheGet(`farm:${accountId}`) || {} : {}));
   const [collData, setCollData] = useState<any>(null);
 
   const fetchFarm = () => {
     if (!accountId) return;
+    const cached = cacheGet<any>(`farm:${accountId}`);
+    if (cached) setFarm(cached);
     accountApi.farm(accountId)
-      .then((res: any) => setFarm(res.data?.data || res.data || {}));
+      .then((res: any) => {
+        const d = res.data?.data || res.data || {};
+        cacheSet(`farm:${accountId}`, d);
+        setFarm(d);
+      });
   };
   const fetchColl = () => {
     if (!accountId) return;
