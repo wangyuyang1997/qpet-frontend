@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Card, Row, Col, Tag, Spin, Typography, Table, Input, Select, Switch, Empty, Tooltip, Button, message } from 'antd';
-import { SearchOutlined, StarFilled, LinkOutlined, CopyOutlined } from '@ant-design/icons';
+import { SearchOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
 import { accountApi } from '../../api/client';
 import { useAccount } from '../../store/useAccount';
 import { cacheGet, cacheSet } from '../../store/useCache';
@@ -197,52 +197,120 @@ export default function Auction() {
       </div>
 
       {recommended.length > 0 && (
-        <Card size="small" title={
-          <span>推荐{className ? ` — 适合${className}` : ''}
-            {insight && <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400, marginLeft: 8 }}>{insight}</Typography.Text>}
-          </span>
-        } style={{ marginBottom: 16, borderLeft: '3px solid #fa8c16' }}>
-          {recommended.map((item: any, i: number) => {
-            const stars = 3 - i;
-            const slot = slotLabel(item.equip_slot || item.slot);
-            const currentEquip = equipped[item.equip_slot || item.slot];
-            return (
-              <div key={i} style={{ padding: '8px 0', borderBottom: i < recommended.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                <Row align="middle" gutter={4}>
-                  <Col flex="40px"><span style={{ color: '#fa8c16' }}>{Array.from({ length: stars }, (_, j) => <StarFilled key={j} style={{ fontSize: 10 }} />)}</span></Col>
-                  <Col flex="160px">
-                    <Typography.Text strong style={{ fontSize: 14 }}>{item.name}</Typography.Text>
-                    {(item.enhance_level || 0) > 0 && <Tag style={{ marginLeft: 4, fontSize: 10, lineHeight: '16px' }}>+{item.enhance_level}</Tag>}
-                  </Col>
-                  <Col flex="80px">{item.quality ? <Tag color={QUALITY_COLOR[item.quality] || 'default'} style={{ fontSize: 10, margin: 0 }}>{item.quality}</Tag> : null}</Col>
-                  <Col flex="70px"><Typography.Text style={{ fontSize: 12 }}>{slot} Lv.{item.item_level || '-'}</Typography.Text></Col>
-                  <Col flex="140px">
-                    {item.set_info && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>{item.set_info}</Tag>}
-                    {item.armor_type && <Tag style={{ fontSize: 10, margin: '0 0 0 4px' }}>{item.armor_type}</Tag>}
-                    {item.class_required && <Tag color="cyan" style={{ fontSize: 10, margin: '0 0 0 4px' }}>{item.class_required}</Tag>}
-                  </Col>
-                  <Col flex="80px"><Typography.Text style={{ fontSize: 12 }}>{item.score || '-'}</Typography.Text></Col>
-                  <Col flex="120px">
-                    <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)' }}>当前 {currentEquip ? (currentEquip.score || '-') : '-'}</Typography.Text>
-                  </Col>
-                  <Col flex="70px"><Tag color="success" style={{ fontSize: 12 }}>↑{item.improvement}%</Tag></Col>
-                  <Col flex="80px"><Typography.Text strong style={{ fontSize: 14, color: 'var(--accent)' }}>{(item.price || 0).toLocaleString()}</Typography.Text></Col>
-                  <Col flex="80px">
-                    {item.armor_match && <Tag color="blue" style={{ fontSize: 10 }}>护甲匹配</Tag>}
-                    {item.set_match && <Tag color="gold" style={{ fontSize: 10 }}>同套装</Tag>}
-                  </Col>
-                  <Col flex="90px">
-                    <Tooltip title="通过油猴脚本单点登录游戏，自动搜索此装备">
-                      <Button type="primary" size="small" ghost icon={<LinkOutlined />}
-                        onClick={() => handleGameSearch(item)}
-                        style={{ fontSize: 11 }}>游戏搜索</Button>
-                    </Tooltip>
-                  </Col>
-                </Row>
-              </div>
-            );
-          })}
-        </Card>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 12 }}>
+            <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+              推荐升级
+            </Typography.Text>
+            {className && <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>
+              适合 {className}
+            </Typography.Text>}
+            {insight && <Typography.Text style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginLeft: 'auto' }}>
+              {insight}
+            </Typography.Text>}
+          </div>
+          <Row gutter={12}>
+            {recommended.map((item: any, i: number) => {
+              const slot = slotLabel(item.equip_slot || item.slot);
+              const currentEquip = equipped[item.equip_slot || item.slot];
+              const statSummary = statText(item.base_stats) || '';
+              const affixSummary = affixText(item.affixes) || '';
+              const detail = [statSummary, affixSummary].filter(Boolean).join(' · ');
+              return (
+                <Col span={8} key={i}>
+                  <div style={{
+                    background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)',
+                    padding: '16px 18px', height: '100%',
+                    boxShadow: 'var(--shadow-sm)', border: '1px solid var(--border-subtle)',
+                    transition: 'box-shadow 0.2s ease, transform 0.15s ease',
+                    cursor: 'pointer', position: 'relative', overflow: 'hidden',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'none'; }}
+                  >
+                    {/* 排名角标 */}
+                    <div style={{
+                      position: 'absolute', top: -1, right: 12,
+                      fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-display)',
+                      color: i === 0 ? '#fa8c16' : i === 1 ? '#aaa' : '#cd7f32',
+                      letterSpacing: '-0.02em',
+                    }}>TOP {i + 1}</div>
+
+                    {/* 名称 + 等级 + 品质 */}
+                    <div style={{ marginBottom: 10 }}>
+                      <Typography.Text strong style={{
+                        fontSize: 14, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em',
+                        display: 'block', marginBottom: 4,
+                      }}>
+                        {(item.enhance_level || 0) > 0 && <span style={{ color: 'var(--accent)', fontWeight: 600, marginRight: 4 }}>+{item.enhance_level}</span>}
+                        {item.name}
+                      </Typography.Text>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {item.quality && <Tag color={QUALITY_COLOR[item.quality] || 'default'} style={{ fontSize: 10, margin: 0, lineHeight: '18px' }}>{item.quality}</Tag>}
+                        <Typography.Text style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{slot} · Lv.{item.item_level || '?'}</Typography.Text>
+                      </div>
+                    </div>
+
+                    {/* 套装 / 护甲 / 职业 */}
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+                      {item.set_info && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>{item.set_info}</Tag>}
+                      {item.armor_type && <Tag style={{ fontSize: 10, margin: 0, color: 'var(--text-secondary)', background: 'var(--bg-glass)', border: '1px solid var(--border-subtle)' }}>{item.armor_type}</Tag>}
+                      {item.class_required && <Tag style={{ fontSize: 10, margin: 0, color: '#0891b2', background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.15)' }}>{item.class_required}</Tag>}
+                      {item.armor_match && <Tag color="blue" style={{ fontSize: 10, margin: 0 }}>护甲匹配</Tag>}
+                      {item.set_match && <Tag color="gold" style={{ fontSize: 10, margin: 0 }}>同套装</Tag>}
+                    </div>
+
+                    {/* 属性/词缀 */}
+                    {detail && (
+                      <Typography.Paragraph ellipsis={{ rows: 2 }} style={{
+                        fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10,
+                        fontFamily: 'var(--font-mono)', lineHeight: '18px',
+                      }}>
+                        {detail}
+                      </Typography.Paragraph>
+                    )}
+
+                    {/* 分数对比 + 提升 */}
+                    <div style={{
+                      display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 10,
+                      background: 'var(--bg-glass)', borderRadius: 'var(--radius-sm)',
+                      padding: '8px 10px',
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>当前</div>
+                        <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                          {(currentEquip ? currentEquip.score : 0) || '-'}
+                        </Typography.Text>
+                      </div>
+                      <div style={{ color: '#52c41a', fontSize: 13, fontWeight: 500 }}>→</div>
+                      <div>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>升级</div>
+                        <Typography.Text style={{ fontSize: 15, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                          {item.score || '-'}
+                        </Typography.Text>
+                      </div>
+                      <Tag color="success" style={{ fontSize: 11, marginLeft: 'auto', fontWeight: 600 }}>
+                        ↑{item.improvement}%
+                      </Tag>
+                    </div>
+
+                    {/* 价格 + 操作 */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Typography.Text strong style={{ fontSize: 16, fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>
+                        {(item.price || 0).toLocaleString()}
+                      </Typography.Text>
+                      <Tooltip title="单点登录游戏并搜索此装备">
+                        <Button type="link" size="small" icon={<LinkOutlined />}
+                          onClick={() => handleGameSearch(item)}
+                          style={{ fontSize: 11, padding: '0 4px', color: 'var(--text-tertiary)' }}>搜索</Button>
+                      </Tooltip>
+                    </div>
+                  </div>
+                </Col>
+              );
+            })}
+          </Row>
+        </div>
       )}
 
       <Card size="small" title={`全部拍卖${typeFilter !== '全部' ? ` · ${slotLabel(typeFilter)}` : ''}`}>
