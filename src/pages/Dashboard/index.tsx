@@ -191,17 +191,11 @@ export default function Dashboard() {
       }
     }
 
-    // 过滤：非满级角色（任何一天 < 100），按最近日期等级降序
-    const candidateIds = accounts
-      .map((a) => a.id)
-      .filter((id) => {
-        const levels = fullDates.map((d) => levelMap[d]?.[id]).filter((v): v is number => v != null);
-        return levels.length > 0 && !levels.every((v) => v >= 100);
-      });
-    const sortedIds = candidateIds.sort((a, b) => {
-      const la = fullDates.reduceRight((acc, d) => acc ?? levelMap[d]?.[a] ?? null, null as number | null) ?? 0;
-      const lb = fullDates.reduceRight((acc, d) => acc ?? levelMap[d]?.[b] ?? null, null as number | null) ?? 0;
-      return lb - la;
+    // 过滤：非满级角色，按用户自定义顺序（不再按等级随机排）
+    const legendOrder = accounts.map((a) => a.id);
+    const sortedIds = legendOrder.filter((id) => {
+      const levels = fullDates.map((d) => levelMap[d]?.[id]).filter((v): v is number => v != null);
+      return levels.length > 0 && !levels.every((v) => v >= 100);
     });
 
     const trendSeries = sortedIds.map((id) => {

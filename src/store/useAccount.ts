@@ -47,6 +47,16 @@ export const useAccount = create<AccountState>((set, get) => ({
         }
       } catch { /* ignore */ }
 
+      // 按用户自定义顺序排列（持久化在 localStorage）
+      try {
+        const order: string[] = JSON.parse(localStorage.getItem('qpet_tab_order') || '[]');
+        if (Array.isArray(order) && order.length > 0) {
+          const idx: Record<string, number> = {};
+          order.forEach((id, i) => { idx[id] = i; });
+          accounts.sort((a, b) => (idx[a.id] ?? 9999) - (idx[b.id] ?? 9999));
+        }
+      } catch { /* keep API order */ }
+
       set({ accounts, loading: false });
 
       // 后台预加载所有账号的配置
