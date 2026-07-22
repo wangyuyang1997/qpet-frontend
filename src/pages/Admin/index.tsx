@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Space, Popconfirm, message, Tabs, Typography } from 'antd';
+import { Table, Button, Modal, Form, Input, Space, Popconfirm, message, Tabs, Typography, Spin } from 'antd';
 import { PlusOutlined, PoweroffOutlined, UploadOutlined, ApiOutlined } from '@ant-design/icons';
 import { adminApi } from '../../api/client';
 import { useAuth } from '../../store/useAuth';
 
 export default function Admin() {
-  const user = useAuth((s) => s.user);
+  const authUser = useAuth((s) => s.user);
+  const authLoading = useAuth((s) => s.loading);
+  // 兜底：store 为空时从 localStorage 读取（checkAuth 未被调用）
+  const user = authUser || (() => { try { return JSON.parse(localStorage.getItem('user_info') || 'null'); } catch { return null; } })();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uOpen, setUOpen] = useState(false);
@@ -31,7 +34,10 @@ export default function Admin() {
     message.success('已保存'); setUOpen(false); setEditU(null); form.resetFields(); refresh();
   };
 
-  if (user?.role !== 'admin') {
+  if (!user) {
+    return <Spin size="large" style={{ display: 'block', margin: '120px auto' }} />;
+  }
+  if (user.role !== 'admin') {
     return (
       <div style={{ textAlign: 'center', padding: '80px 0' }}>
         <Typography.Text style={{ fontSize: 15, color: 'var(--text-tertiary)' }}>无访问权限</Typography.Text>
