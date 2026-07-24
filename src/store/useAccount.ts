@@ -10,6 +10,7 @@ export interface AccountSummary {
   class_name: string;
   running: boolean;
   is_premium: boolean;
+  sort_order: number;
 }
 
 interface AccountState {
@@ -38,6 +39,7 @@ export const useAccount = create<AccountState>((set, get) => ({
         class_name: a.class_name || '',
         running: a.running || false,
         is_premium: a.is_premium || false,
+        sort_order: a.sort_order ?? 0,
       }));
 
       try {
@@ -47,15 +49,8 @@ export const useAccount = create<AccountState>((set, get) => ({
         }
       } catch { /* ignore */ }
 
-      // 按用户自定义顺序排列（持久化在 localStorage）
-      try {
-        const order: string[] = JSON.parse(localStorage.getItem('qpet_tab_order') || '[]');
-        if (Array.isArray(order) && order.length > 0) {
-          const idx: Record<string, number> = {};
-          order.forEach((id, i) => { idx[id] = i; });
-          accounts.sort((a, b) => (idx[a.id] ?? 9999) - (idx[b.id] ?? 9999));
-        }
-      } catch { /* keep API order */ }
+      // 按后端 sort_order 排序
+      accounts.sort((a, b) => a.sort_order - b.sort_order);
 
       set({ accounts, loading: false });
 

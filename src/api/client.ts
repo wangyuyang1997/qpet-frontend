@@ -60,6 +60,7 @@ export const accountApi = {
   getCredentials: (id: string) => api.get(`/accounts/${id}/credentials`),
   regenerateKey: (id: string) => api.post(`/accounts/${id}/regenerate-key`),
   action: (id: string, action: string) => api.post(`/accounts/${id}/${action}`),
+  reorder: (orders: { id: string; sort_order: number }[]) => api.put('/accounts/reorder', { orders }),
 };
 
 // Dashboard

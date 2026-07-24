@@ -39,7 +39,7 @@ export default function Gang() {
   if (!gang) return <Typography.Text type="secondary" style={{ fontSize: 16 }}>未加入帮派或数据未同步</Typography.Text>;
 
   // 帮派状态（DB持久化）
-  const { name, level, notice, accumulated_contribution, guardian_level,
+  const { name, level, notice, accumulated_contribution, contribution, guardian_level,
     member_count, next_level, next_need_contrib, next_member_limit,
     level_progress, my_role, my_contribution, skills, bosses, members } = gang;
 
@@ -86,7 +86,7 @@ export default function Gang() {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col xs={24} md={14}>
-          <Card size="small" title={<span>共享技能 · 可用贡献 <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{my_contribution}</span></span>}>
+          <Card size="small" title={<span>共享技能 · 可用贡献 <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{contribution ?? 0}</span></span>}>
             {sortedSkills.length === 0 ? <Empty description="暂无" /> : (
               sortedSkills.map((s: any) => {
                 const locked = (s.min_gang_level || 1) > (level || 0);
@@ -115,7 +115,7 @@ export default function Gang() {
           <Card size="small" title="我的" style={{ marginBottom: 16 }}>
             <Row gutter={[12, 8]}>
               <Col span={12}><Statistic title="角色" value={my_role === 'leader' ? '帮主' : my_role === 'vice_leader' ? '副帮主' : my_role === 'elite' ? '精英' : '成员'} valueStyle={{ fontSize: 16 }} /></Col>
-              <Col span={12}><Statistic title="可用贡献" value={my_contribution || 0} valueStyle={{ fontSize: 16 }} /></Col>
+              <Col span={12}><Statistic title="历史贡献" value={my_contribution || 0} valueStyle={{ fontSize: 16 }} /></Col>
             </Row>
           </Card>
 

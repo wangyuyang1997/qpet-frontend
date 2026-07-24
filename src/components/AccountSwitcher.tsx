@@ -30,13 +30,8 @@ export default function AccountSwitcher() {
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  // Maintain ordered list; persist to localStorage
-  const [orderedIds, setOrderedIds] = useState<string[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('qpet_tab_order') || '[]');
-      return Array.isArray(saved) && saved.length > 0 ? saved : [];
-    } catch { return []; }
-  });
+  // Accounts are already sorted by sort_order from the store
+  const orderedIds = useMemo(() => accounts.map(a => a.id), [accounts]);
 
   const updateArrows = useCallback(() => {
     const el = scrollRef.current;
@@ -167,23 +162,8 @@ export default function AccountSwitcher() {
     },
   ], [handleStartStop, handleSSO, handleUnclaim]);
 
-  // Sync orderedIds when accounts list changes (append new, remove stale)
-  useEffect(() => {
-    if (accounts.length === 0) return;
-    const ids = accounts.map((a) => a.id);
-    const merged = orderedIds.filter((id) => ids.includes(id));
-    ids.forEach((id) => { if (!merged.includes(id)) merged.push(id); });
-    if (merged.join(',') !== orderedIds.join(',')) {
-      setOrderedIds(merged);
-      localStorage.setItem('qpet_tab_order', JSON.stringify(merged));
-    }
-  }, [accounts.map((a) => a.id).join(',')]); // eslint-disable-line
-
-  const sortedAccounts = useMemo(() => {
-    const idOrder: Record<string, number> = {};
-    orderedIds.forEach((id, i) => { idOrder[id] = i; });
-    return [...accounts].sort((a, b) => (idOrder[a.id] ?? 999) - (idOrder[b.id] ?? 999));
-  }, [accounts, orderedIds]);
+  // Accounts already sorted by sort_order from store
+  const sortedAccounts = accounts;
 
   // Drag-and-drop handlers
   const handleDragStart = (e: React.DragEvent, idx: number) => {
@@ -197,16 +177,18 @@ export default function AccountSwitcher() {
     setDragOverIdx(idx);
   };
   const handleDragLeave = () => setDragOverIdx(null);
-  const handleDrop = (e: React.DragEvent, toIdx: number) => {
+  const handleDrop = async (e: React.DragEvent, toIdx: number) => {
     e.preventDefault();
     if (draggedIdx === null || draggedIdx === toIdx) { setDraggedIdx(null); setDragOverIdx(null); return; }
     const newOrder = [...orderedIds];
     const [moved] = newOrder.splice(draggedIdx, 1);
     newOrder.splice(toIdx, 0, moved);
-    setOrderedIds(newOrder);
-    localStorage.setItem('qpet_tab_order', JSON.stringify(newOrder));
     setDraggedIdx(null);
     setDragOverIdx(null);
+    try {
+      await accountApi.reorder(newOrder.map((id, i) => ({ id, sort_order: i })));
+      await fetchAccounts();
+    } catch { /* best-effort */ }
   };
   const handleDragEnd = () => { setDraggedIdx(null); setDragOverIdx(null); };
 
@@ -298,7 +280,7 @@ export default function AccountSwitcher() {
                   gap: 6,
                   padding: '5px 12px',
                   borderRadius: 8,
-                  border: isDragTarget ? '1px dashed var(--accent)' : active ? '1px solid var(--accent)' : '1px solid transparent',
+                  border: isDragTarget ? '1px dashed var(--accent)' : active ? '1px solid var(--accent)' : acc.is_premium ? '2px solid rgba(212,160,23,0.5)' : '1px solid transparent',
                   background: active ? 'var(--accent-subtle)' : isDragTarget ? 'rgba(0,113,227,0.06)' : 'transparent',
                   opacity: isDragging ? 0.4 : 1,
                   cursor: isDragging ? 'grabbing' : 'grab',
@@ -321,10 +303,13 @@ export default function AccountSwitcher() {
               >
                 <span style={{
                   width: 7, height: 7, borderRadius: '50%',
-                  background: acc.running ? 'var(--green)' : 'var(--text-tertiary)',
+                  background: acc.running ? (acc.is_premium ? '#d4a017' : 'var(--green)') : 'var(--text-tertiary)',
                   flexShrink: 0,
-                  boxShadow: acc.running ? '0 0 4px var(--green)' : 'none',
+                  boxShadow: acc.running ? (acc.is_premium ? '0 0 4px #d4a017' : '0 0 4px var(--green)') : 'none',
                 }} />
+                <span style={{ color: 'var(--text-tertiary)', fontSize: 10, fontWeight: 400, marginRight: -2 }}>
+                  {idx + 1}
+                </span>
                 <span>{truncName(acc.name)}</span>
                 <span style={{ color: active ? 'var(--accent)' : 'var(--text-tertiary)', fontSize: 11, fontWeight: 400 }}>
                   Lv.{acc.level}

@@ -85,7 +85,9 @@ export default function Museum() {
                       ? <Tag color="success" style={{ fontSize: 10 }}>成</Tag>
                       : item.status === '半'
                         ? <Tag style={{ fontSize: 10 }}>半</Tag>
-                        : null;
+                        : item.fragment_count > 0
+                          ? <Tag style={{ fontSize: 10, color: '#999' }}>见</Tag>
+                          : null;
                     return (
                       <Col key={item.item_id} xs={12} sm={8} md={6} lg={4}>
                         <Tooltip title={item.description || item.name}>
