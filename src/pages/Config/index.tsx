@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Switch, Spin, message, Typography, Select, Tag } from 'antd';
+import { Switch, Spin, message, Typography, Select, Tag, Card } from 'antd';
 import {
   ThunderboltOutlined, ExperimentOutlined, TeamOutlined,
   HeartOutlined, ShopOutlined, ToolOutlined, GiftOutlined,
@@ -206,6 +206,7 @@ export default function Config() {
 
   const [configs, setConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>(SECTIONS[0].title);
   const firstLoadRef = useRef(true);
 
   useEffect(() => {
@@ -315,46 +316,53 @@ export default function Config() {
         </Tag>
       </div>
 
-      {/* ── Sections ── */}
-      {SECTIONS.map((sec, si) => {
-        const rows = sec.keys.map((k) => {
-          const c = configMap[k];
-          if (!c) return null;
-          const lb = LABELS[k] || { name: k, desc: c.description || '', icon: null };
-          return { key: k, config: c, ...lb };
-        }).filter(Boolean) as any[];
+      {/* ── Tabs ── */}
+      <Card
+        tabList={SECTIONS.map((sec) => ({ key: sec.title, tab: sec.title }))}
+        activeTabKey={activeTab}
+        onTabChange={setActiveTab}
+        style={{ border: 'none', boxShadow: 'none' }}
+        bodyStyle={{ padding: '16px 0 0' }}
+      >
+        {SECTIONS.map((sec) => {
+          const rows = sec.keys.map((k) => {
+            const c = configMap[k];
+            if (!c) return null;
+            const lb = LABELS[k] || { name: k, desc: c.description || '', icon: null };
+            return { key: k, config: c, ...lb };
+          }).filter(Boolean) as any[];
 
-        if (rows.length === 0) return null;
+          if (rows.length === 0) return null;
 
-        return (
-          <div key={sec.title} style={{ ...styles.section, animationDelay: `${0.08 * si}s` }}>
-            <div style={styles.sectionTitle}>{sec.title}</div>
-            {rows.map((row) => (
-              <div
-                key={row.key}
-                style={styles.row}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = 'transparent';
-                }}
-              >
-                <div style={styles.rowLeft}>
-                  <div style={styles.iconBox}>{row.icon}</div>
-                  <div style={styles.rowText}>
-                    <div style={styles.chipRow}>
-                      <span style={styles.rowName}>{row.name}</span>
+          return (
+            <div key={sec.title} style={{ display: activeTab === sec.title ? 'block' : 'none' }}>
+              {rows.map((row) => (
+                <div
+                  key={row.key}
+                  style={styles.row}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = 'var(--accent-subtle)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = 'transparent';
+                  }}
+                >
+                  <div style={styles.rowLeft}>
+                    <div style={styles.iconBox}>{row.icon}</div>
+                    <div style={styles.rowText}>
+                      <div style={styles.chipRow}>
+                        <span style={styles.rowName}>{row.name}</span>
+                      </div>
+                      <span style={styles.rowDesc}>{row.desc}</span>
                     </div>
-                    <span style={styles.rowDesc}>{row.desc}</span>
                   </div>
+                  <div style={styles.control}>{renderControl(row.config)}</div>
                 </div>
-                <div style={styles.control}>{renderControl(row.config)}</div>
-              </div>
-            ))}
-          </div>
-        );
-      })}
+              ))}
+            </div>
+          );
+        })}
+      </Card>
     </div>
   );
 }
