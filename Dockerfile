@@ -12,4 +12,4 @@ FROM nginx:stable-alpine
 COPY --from=builder /build/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost/ || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -sf http://localhost/ || exit 1
