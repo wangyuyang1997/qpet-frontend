@@ -230,7 +230,7 @@ export default function Dashboard() {
     { label: '帮派BOSS', current: todayRow?.gang_boss_fights ?? null, max: 15, suffix: '次' },
     isMarried
       ? { label: '婚内送花', current: todayRow?.flowers_sent ?? null, max: 5, suffix: '次' }
-      : { label: '好友送花', current: null, max: 10, suffix: '次' },
+      : { label: '好友送花', current: todayRow?.flowers_sent ?? null, max: 10, suffix: '次' },
     { label: '挑战书', current: todayRow?.challenge_books ?? null, max: 5, suffix: '次' },
   ];
 
