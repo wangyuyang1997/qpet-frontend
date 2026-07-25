@@ -8,7 +8,7 @@ jobs:
   pull:
     runs-on: ubuntu-latest
     steps:
-      - name: æ‹‰å–æœ€æ–°ä»£ç 
+      - name: À­È¡×îĞÂ´úÂë
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -25,7 +25,7 @@ jobs:
     needs: pull
     runs-on: ubuntu-latest
     steps:
-      - name: æ„å»º Docker é•œåƒ
+      - name: ¹¹½¨ Docker ¾µÏñ
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -40,7 +40,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: é‡å¯æœåŠ¡
+      - name: ÖØÆô·şÎñ
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
