@@ -8,7 +8,7 @@ jobs:
   pull:
     runs-on: ubuntu-latest
     steps:
-      - name: À­È¡×îĞÂ´úÂë
+      - name: æ‹‰å–æœ€æ–°ä»£ç 
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -16,7 +16,7 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /root/qpet-frontend
+            cd /opt/qpet-frontend
             for i in 1 2 3; do
               git pull origin master && break || sleep 5
             done
@@ -25,7 +25,7 @@ jobs:
     needs: pull
     runs-on: ubuntu-latest
     steps:
-      - name: ¹¹½¨ Docker ¾µÏñ
+      - name: æ„å»º Docker é•œåƒ
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -40,7 +40,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: ÖØÆô·şÎñ
+      - name: é‡å¯æœåŠ¡
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
