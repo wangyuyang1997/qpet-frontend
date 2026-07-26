@@ -219,7 +219,7 @@ export default function Museum() {
   const tradeColumns = [
     {
       title: '时间', dataIndex: 'updated_at', key: 'time', width: 140,
-      render: (v: string) => v ? v.slice(5, 16).replace('T', ' ') : '-',
+      render: (v: string) => v ? new Date(v).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }) : '-',
     },
     {
       title: '方向', dataIndex: 'direction', key: 'direction', width: 80,
