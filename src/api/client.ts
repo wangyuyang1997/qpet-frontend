@@ -49,6 +49,7 @@ export const accountApi = {
   skillTree: (id: string) => api.get(`/accounts/${id}/skill-tree`),
   farm: (id: string) => api.get(`/accounts/${id}/farm`),
   museumProgress: (id: string) => api.get(`/accounts/${id}/museum-progress`),
+  museumTrades: (id: string) => api.get(`/accounts/${id}/museum-trades`),
   collectionProgress: (id: string) => api.get(`/accounts/${id}/collection-progress`),
   landStatus: (id: string) => api.get(`/accounts/${id}/land-status`),
   inventoryProgress: (id: string) => api.get(`/accounts/${id}/inventory-progress`),

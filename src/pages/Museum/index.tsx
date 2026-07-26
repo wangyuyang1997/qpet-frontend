@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, Row, Col, Tag, Typography, Progress, Statistic, Empty, Space, Collapse, Tooltip } from 'antd';
+import { Card, Row, Col, Tag, Typography, Progress, Statistic, Empty, Space, Collapse, Tooltip, Table } from 'antd';
 import { HomeOutlined } from '@ant-design/icons';
 import { accountApi } from '../../api/client';
 
@@ -26,6 +26,7 @@ export default function Museum() {
   const { accountId } = useParams<{ accountId: string }>();
   const [museum, setMuseum] = useState<any>(null);
   const [land, setLand] = useState<any>(null);
+  const [trades, setTrades] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<string>('museum');
 
   const fetchAll = () => {
@@ -34,6 +35,8 @@ export default function Museum() {
       .then((res: any) => setMuseum(res.data?.data || null));
     accountApi.landStatus(accountId)
       .then((res: any) => setLand(res.data?.data || null));
+    accountApi.museumTrades(accountId)
+      .then((res: any) => setTrades(res.data?.data || null));
   };
 
   useEffect(() => { fetchAll(); }, [accountId]);
@@ -47,7 +50,6 @@ export default function Museum() {
   const cats = museum?.categories || [];
   const repairedCount = museum?.repaired_count || 0;
 
-  // 按分类×稀有度 分组
   const groups: Record<string, Record<string, any[]>> = {};
   for (const it of items) {
     const cat = it.category || '其他';
@@ -91,7 +93,7 @@ export default function Museum() {
                     return (
                       <Col key={item.item_id} xs={12} sm={8} md={6} lg={4}>
                         <Tooltip title={item.description || item.name}>
-                          <Card size="small" bodyStyle={{ padding: '6px 8px' }}
+                          <Card size="small" styles={{ body: { padding: '6px 8px' } }}
                             style={{ opacity: item.fragment_count > 0 ? 1 : 0.35 }}>
                             <div style={{ fontSize: 12, fontWeight: 500 }}>
                               {item.name} {statusTag}
@@ -113,17 +115,14 @@ export default function Museum() {
     </div>
   );
 
-  // ——— Land Tab (统一养成) ———
+  // ——— Land Tab ———
   const curLv = land?.level || 1;
   const next = land?.next || {};
   const rp = land?.research_points || 0;
-
-  // 计算藏品进度（用于土地升级门槛显示）
   const repairedForLand = repairedCount;
 
   const landTab = land ? (
     <div>
-      {/* 顶部：当前状态 + 下一级目标 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col span={8}>
           <Card size="small">
@@ -153,7 +152,6 @@ export default function Museum() {
         </Col>
       </Row>
 
-      {/* 下一级升级预览 */}
       {next.level && (
         <Card size="small" title={`下一级：${next.name}`} style={{ marginBottom: 20 }}>
           <Row gutter={24}>
@@ -174,7 +172,6 @@ export default function Museum() {
         </Card>
       )}
 
-      {/* 9 阶路线总览 */}
       <Typography.Title level={5} style={{ marginBottom: 12 }}>晋级路线总览 · 共 9 阶</Typography.Title>
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 16 }}>
         每次升级都会直接提升全农场所有土地的成长与收获收益。
@@ -188,7 +185,7 @@ export default function Museum() {
           const borderColor = isCurrent ? '#fa8c16' : isPassed ? '#52c41a' : isNext ? '#1677ff' : 'transparent';
           return (
             <Col key={t.lv} xs={12} sm={8} md={6} lg={4} xl={3}>
-              <Card size="small" bodyStyle={{ padding: '8px 10px' }}
+              <Card size="small" styles={{ body: { padding: '8px 10px' } }}
                 style={{ borderTop: `3px solid ${borderColor}`, opacity: isPassed || isCurrent ? 1 : 0.5 }}>
                 <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>
                   Lv.{t.lv} {t.name}
@@ -210,6 +207,94 @@ export default function Museum() {
     </div>
   ) : <Empty description="暂无土地数据，请先启动引擎同步" />;
 
+  // ——— Trade Tab ———
+  const tradeList = trades?.trades || [];
+  const canTrade = trades?.can_trade || false;
+  const todayTrade = trades?.today_trade_count || 0;
+
+  const tradeColumns = [
+    {
+      title: '时间', dataIndex: 'updated_at', key: 'time', width: 140,
+      render: (v: string) => v ? v.slice(5, 16).replace('T', ' ') : '-',
+    },
+    {
+      title: '方向', dataIndex: 'direction', key: 'direction', width: 80,
+      render: (v: string) => v === 'initiated'
+        ? <Tag color="blue">我发起</Tag>
+        : <Tag color="orange">我收到</Tag>,
+    },
+    {
+      title: '对方', dataIndex: 'counterparty_name', key: 'peer', width: 100,
+    },
+    {
+      title: '我提供', key: 'offer', width: 160,
+      render: (_: any, r: any) => {
+        const direction = r.direction === 'initiated' ? 'offer' : 'want';
+        const item = direction === 'offer' ? r : r;
+        const id = direction === 'offer' ? r.offer_item_id : r.want_item_id;
+        const name = direction === 'offer' ? r.offer_item_name : r.want_item_name;
+        const qty = direction === 'offer' ? r.offer_quantity : r.want_quantity;
+        const rarity = direction === 'offer' ? r.offer_item_rarity : r.want_item_rarity;
+        return (
+          <Space size={4}>
+            <span>{name} ×{qty}</span>
+            <Tag color={RARITY_COLOR[rarity] || '#999'} style={{ fontSize: 10, lineHeight: '16px' }}>{rarity}</Tag>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '我获得', key: 'want', width: 160,
+      render: (_: any, r: any) => {
+        const direction = r.direction === 'initiated' ? 'want' : 'offer';
+        const id = direction === 'want' ? r.want_item_id : r.offer_item_id;
+        const name = direction === 'want' ? r.want_item_name : r.offer_item_name;
+        const qty = direction === 'want' ? r.want_quantity : r.offer_quantity;
+        const rarity = direction === 'want' ? r.want_item_rarity : r.offer_item_rarity;
+        return (
+          <Space size={4}>
+            <span>{name} ×{qty}</span>
+            <Tag color={RARITY_COLOR[rarity] || '#999'} style={{ fontSize: 10, lineHeight: '16px' }}>{rarity}</Tag>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '唯一码', dataIndex: 'unique_code', key: 'code', width: 120,
+      render: (v: string) => <Typography.Text copyable style={{ fontSize: 12, fontFamily: 'monospace' }}>{v}</Typography.Text>,
+    },
+    {
+      title: '状态', dataIndex: 'status', key: 'status', width: 80,
+      render: (v: string) => {
+        const map: Record<string, [string, string]> = {
+          accepted: ['已完成', 'green'],
+          pending: ['待接受', 'orange'],
+          rejected: ['已拒绝', 'red'],
+        };
+        const [label, color] = map[v] || [v, 'default'];
+        return <Tag color={color}>{label}</Tag>;
+      },
+    },
+  ];
+
+  const tradeTab = (
+    <div>
+      <Space style={{ marginBottom: 16 }}>
+        <Typography.Text strong style={{ fontSize: 16 }}>
+          藏品交易记录
+        </Typography.Text>
+        <Tag color={canTrade ? 'green' : 'default'}>{`今日交易: ${todayTrade}/1`}</Tag>
+      </Space>
+      {tradeList.length === 0 ? (
+        <Empty description="暂无藏品交易记录，匹配每小时自动执行" />
+      ) : (
+        <Table dataSource={tradeList} columns={tradeColumns}
+          rowKey="id" pagination={false} size="small"
+          style={{ fontSize: 13 }} />
+      )}
+    </div>
+  );
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -221,16 +306,16 @@ export default function Museum() {
         </Space>
       </div>
 
-      {/* 两个 Tab：博物馆 + 土地养成 */}
       <Card
         tabList={[
           { key: 'museum', tab: '博物馆' },
           { key: 'land', tab: '土地养成' },
+          { key: 'trade', tab: '藏品交易' },
         ]}
         activeTabKey={activeTab}
         onTabChange={setActiveTab}
       >
-        {activeTab === 'museum' ? museumTab : landTab}
+        {activeTab === 'museum' ? museumTab : activeTab === 'land' ? landTab : tradeTab}
       </Card>
     </div>
   );
