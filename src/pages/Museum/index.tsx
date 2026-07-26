@@ -83,8 +83,12 @@ export default function Museum() {
                   {rarMap[r].map((item: any) => {
                     const pct = item.fragments_needed > 0
                       ? Math.round((item.fragment_count / item.fragments_needed) * 100) : 0;
+                    const surplus = item.tradeable_fragments || 0;
                     const statusTag = item.is_repaired
-                      ? <Tag color="success" style={{ fontSize: 10 }}>成</Tag>
+                      ? <span>
+                          <Tag color="success" style={{ fontSize: 10 }}>成</Tag>
+                          {surplus > 0 && <Tag color="orange" style={{ fontSize: 10, marginLeft: -4 }}>+{surplus}可换</Tag>}
+                        </span>
                       : item.status === '半'
                         ? <Tag style={{ fontSize: 10 }}>半</Tag>
                         : item.fragment_count > 0
